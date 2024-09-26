@@ -8,6 +8,7 @@ from schemas import Sucursal as su
 from schemas import Propietario as pr
 from schemas import Login 
 from schemas import Producto as pro
+from schemas import Categoria as cat
 from fastapi.middleware.cors import CORSMiddleware
 
 app=FastAPI()
@@ -104,6 +105,34 @@ def obtener_productos(db: Session = Depends(get_db)):
 
     return categorias
 
+@app.post("/registrar_categoria")
+async def registrar_categoria(categoria: cat, db: Session = Depends(get_db)):
+    sql = text("SELECT * FROM categoria WHERE nombre = :nombre")
+    nombre_existente = db.execute(sql, {'nombre': categoria.nombre}).fetchone()
+
+    if nombre_existente:
+        raise HTTPException(status_code=400, detail="El nombre de la categoría ya existe")
+    sqlingresar = text("""
+                       INSERT INTO categoria (nombre)
+                       values (:nombre)
+                       """)
+    
+    values = {
+        'nombre': categoria.nombre
+    }
+    
+    result = db.execute(sqlingresar, values)
+    db.commit()
+    
+    # Obtener el id generado automáticamente
+    nuevo_id = result.lastrowid
+    
+    return {
+        "id": nuevo_id,
+        "nombre": categoria.nombre
+    }
+
+
 @app.post("/registrar_producto")
 async def registrar_producto(producto: pro, db: Session = Depends(get_db)):
 
@@ -135,6 +164,36 @@ async def registrar_producto(producto: pro, db: Session = Depends(get_db)):
         "id_categoria": producto.id_categoria
     }
 
+@app.put("/actualizar_categoria/")
+async def actualizar_categoria(categoria: cat, db: Session = Depends(get_db)):
+
+    # Verifica si la categoría con el ID proporcionado existe
+    sql = text("SELECT * FROM categoria WHERE id = :id")
+    id_existente = db.execute(sql, {'id': categoria.id}).fetchone()
+
+    if not id_existente:
+        raise HTTPException(status_code=404, detail="Categoría no encontrada")
+
+    # Actualiza los datos de la categoría
+    sql1 = text("""
+    UPDATE categoria 
+    SET nombre = :nombre
+    WHERE id = :id
+    """)
+
+    values = {
+        'id': categoria.id,
+        'nombre': categoria.nombre
+    }
+
+    db.execute(sql1, values)
+    db.commit()
+
+    return {
+        "id": categoria.id,
+        "nombre": categoria.nombre
+    }
+
 
 @app.put("/actualizar_producto/")
 async def actualizar_producto(producto: pro, db: Session = Depends(get_db)):
@@ -163,6 +222,30 @@ async def actualizar_producto(producto: pro, db: Session = Depends(get_db)):
         "precio": producto.precio,
         "id_categoria": producto.id_categoria
     }
+
+@app.delete("/eliminar_categoria/{id}")
+async def eliminar_categoria(id: int, db: Session = Depends(get_db)):
+
+    # Verifica si la categoría con el ID proporcionado existe
+    sql = text("SELECT * FROM categoria WHERE id = :id")
+    id_existente = db.execute(sql, {'id': id}).fetchone()
+
+    if not id_existente:
+        raise HTTPException(status_code=404, detail="Categoría no encontrada")
+
+    # Elimina la categoría
+    sql1 = text("""
+    DELETE FROM categoria
+    WHERE id = :id
+    """)
+
+    db.execute(sql1, {'id': id})
+    db.commit()
+
+    return {
+        "detail": "Categoría eliminada exitosamente"
+    }
+
 
 @app.delete("/eliminar_producto/{id}")
 async def eliminar_producto(id: int, db: Session = Depends(get_db)):

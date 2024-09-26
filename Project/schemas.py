@@ -25,5 +25,4 @@ class Producto(BaseModel):
     id_categoria:int
 
 class Categoria(BaseModel):
-    id:int
     nombre:str
