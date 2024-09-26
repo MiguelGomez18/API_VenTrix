@@ -26,3 +26,6 @@ class Producto(BaseModel):
 
 class Categoria(BaseModel):
     nombre:str
+    
+class Mesas(BaseModel):
+    nombre:str

@@ -9,6 +9,7 @@ from schemas import Propietario as pr
 from schemas import Login 
 from schemas import Producto as pro
 from schemas import Categoria as cat
+from schemas import Mesas as me
 from fastapi.middleware.cors import CORSMiddleware
 
 app=FastAPI()
@@ -105,6 +106,21 @@ def obtener_productos(db: Session = Depends(get_db)):
 
     return categorias
 
+@app.get("/mesas")
+async def obtener_mesas(db: Session = Depends(get_db)):
+    # Consulta para obtener todas las mesas
+    sql = text("SELECT * FROM mesa")
+    resultados = db.execute(sql).fetchall()  # Obtiene todas las mesas
+
+    # Convierte los resultados en una lista de diccionarios
+    mesas = [{
+        "id": resultado.id,
+        "nombre": resultado.nombre,
+    } for resultado in resultados]
+
+    return mesas
+
+
 @app.post("/registrar_categoria")
 async def registrar_categoria(categoria: cat, db: Session = Depends(get_db)):
     sql = text("SELECT * FROM categoria WHERE nombre = :nombre")
@@ -130,6 +146,36 @@ async def registrar_categoria(categoria: cat, db: Session = Depends(get_db)):
     return {
         "id": nuevo_id,
         "nombre": categoria.nombre
+    }
+
+@app.post("/registrar_mesa")
+async def registrar_mesa(mesa: me, db: Session = Depends(get_db)):
+    # Verificar si ya existe una mesa con el mismo nombre
+    sql = text("SELECT * FROM mesa WHERE nombre = :nombre")
+    nombre_existente = db.execute(sql, {'nombre': mesa.nombre}).fetchone()
+
+    if nombre_existente:
+        raise HTTPException(status_code=400, detail="El nombre de la mesa ya existe")
+
+    # Insertar nueva mesa
+    sqlingresar = text("""
+                       INSERT INTO mesa (nombre)
+                       VALUES (:nombre)
+                       """)
+
+    values = {
+        'nombre': mesa.nombre
+    }
+
+    result = db.execute(sqlingresar, values)
+    db.commit()
+
+    # Obtener el ID generado automáticamente
+    nuevo_id = result.lastrowid
+
+    return {
+        "id": nuevo_id,
+        "nombre": mesa.nombre
     }
 
 
@@ -162,6 +208,36 @@ async def registrar_producto(producto: pro, db: Session = Depends(get_db)):
         "nombre": producto.nombre,
         "precio": producto.precio,
         "id_categoria": producto.id_categoria
+    }
+
+@app.put("/actualizar_mesa/")
+async def actualizar_mesa(mesa: me, db: Session = Depends(get_db)):
+
+    # Verifica si la mesa con el ID proporcionado existe
+    sql = text("SELECT * FROM mesa WHERE id = :id")
+    id_existente = db.execute(sql, {'id': mesa.id}).fetchone()
+
+    if not id_existente:
+        raise HTTPException(status_code=404, detail="Mesa no encontrada")
+
+    # Actualiza los datos de la mesa
+    sql1 = text("""
+    UPDATE mesa 
+    SET nombre = :nombre
+    WHERE id = :id
+    """)
+
+    values = {
+        'id': mesa.id,
+        'nombre': mesa.nombre
+    }
+
+    db.execute(sql1, values)
+    db.commit()
+
+    return {
+        "id": mesa.id,
+        "nombre": mesa.nombre
     }
 
 @app.put("/actualizar_categoria/")
@@ -222,6 +298,30 @@ async def actualizar_producto(producto: pro, db: Session = Depends(get_db)):
         "precio": producto.precio,
         "id_categoria": producto.id_categoria
     }
+
+@app.delete("/eliminar_mesa/{id}")
+async def eliminar_mesa(id: int, db: Session = Depends(get_db)):
+
+    # Verifica si la mesa con el ID proporcionado existe
+    sql = text("SELECT * FROM mesa WHERE id = :id")
+    id_existente = db.execute(sql, {'id': id}).fetchone()
+
+    if not id_existente:
+        raise HTTPException(status_code=404, detail="Mesa no encontrada")
+
+    # Elimina la mesa
+    sql1 = text("""
+    DELETE FROM mesa
+    WHERE id = :id
+    """)
+
+    db.execute(sql1, {'id': id})
+    db.commit()
+
+    return {
+        "detail": "Mesa eliminada exitosamente"
+    }
+
 
 @app.delete("/eliminar_categoria/{id}")
 async def eliminar_categoria(id: int, db: Session = Depends(get_db)):
