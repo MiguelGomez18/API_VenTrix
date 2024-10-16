@@ -1,4 +1,5 @@
 from pydantic import BaseModel
+from datetime import datetime
 
 class Sucursal(BaseModel):
     nit: str
@@ -7,7 +8,8 @@ class Sucursal(BaseModel):
     direccion: str
     telefono: str
     correo: str
-
+    documento: int
+    
 class Propietario(BaseModel):
     documento:int
     nombre:str
@@ -29,12 +31,3 @@ class Categoria(BaseModel):
     
 class Mesas(BaseModel):
     nombre:str
-
-class Sucursal(BaseModel):
-    nit: str
-    rut: str
-    nombre: str
-    direccion: str
-    telefono: str
-    correo: str
-    documento: int
