@@ -10,6 +10,7 @@ from schemas import Login
 from schemas import Producto as pro
 from schemas import Categoria as cat
 from schemas import Mesas as me
+from schemas import Sucursal as su
 from fastapi.middleware.cors import CORSMiddleware
 
 app=FastAPI()
@@ -24,43 +25,11 @@ app.add_middleware(
 
 base.metadata.create_all(bind=crear)
 
-@app.post("/registros_tiendas", response_model=su)
-async def registrar_sucursal(tiendamodel:su,db:Session=Depends(get_db)):
-    datos=RegistroSucursal(**tiendamodel.dict())
-    db.add(datos)
-    db.commit()
-    db.refresh(datos)
-    return datos
-
 @app.get("/propietario/documento/", response_model=list[str])
 async def getidd(db:Session=Depends(get_db)):
     documentos=db.query(RegistroPropietario.documento).all()
     return[doc[0] for doc in documentos]
 
-
-@app.post("/registro_propietario")
-async def registrar_propietario(propietario: pr, db:Session = Depends(get_db)):
-    documento_user = db.query(RegistroPropietario).filter(RegistroPropietario.documento == propietario.documento).first()
-    if documento_user:
-        raise HTTPException(status_code=400, detail="El documento de este Propietario ya existe")
-
-    encriptacion = bcrypt.hashpw(propietario.password.encode('utf-8'), bcrypt.gensalt())
-
-    nuevo_propietario = RegistroPropietario(
-        documento=propietario.documento,
-        nombre=propietario.nombre,
-        correo=propietario.correo,
-        password=encriptacion.decode('utf-8')
-    )
-    db.add(nuevo_propietario)
-    db.commit()
-    db.refresh(nuevo_propietario)
-    
-    return {
-        "documento": nuevo_propietario.documento,
-        "nombre": nuevo_propietario.nombre,
-        "correo": nuevo_propietario.correo
-    }
 
 @app.post("/login")
 async def login(propietario:Login,db:Session=Depends(get_db)):
@@ -120,6 +89,104 @@ async def obtener_mesas(db: Session = Depends(get_db)):
 
     return mesas
 
+@app.get("/sucursales/{documento}")
+def obtener_sucursales(documento: int, db: Session = Depends(get_db)):
+    # Consulta para verificar si existen sucursales con el documento dado
+    sql_existencia = text("SELECT 1 FROM sucursal WHERE documento = :documento LIMIT 1")
+    documento_existente = db.execute(sql_existencia, {'documento': documento}).fetchone()
+
+    if documento_existente:
+        # Consulta para obtener todas las sucursales con el documento dado
+        sql_sucursales = text("SELECT * FROM sucursal WHERE documento = :documento")
+        resultados = db.execute(sql_sucursales, {'documento': documento}).fetchall()
+
+        # Convierte los resultados en una lista de diccionarios
+        sucursales = [{
+            "nit": resultado.nit,
+            "rut": resultado.rut,
+            "nombre": resultado.nombre,
+            "direccion": resultado.direccion,
+            "telefono": resultado.telefono,
+            "correo": resultado.correo,
+            "documento": resultado.documento
+        } for resultado in resultados]
+
+        return sucursales
+    
+    else:
+        raise HTTPException(status_code=400, detail="No se encontraron sucursales con el documento proporcionado.")
+
+@app.get("/correo/{correo}")
+def obtener_sucursal(correo: str, db: Session = Depends(get_db)):
+    # Verificar si el correo existe
+    sql_existencia = text("SELECT 1 FROM propietario WHERE correo = :correo LIMIT 1")
+    correo_existente = db.execute(sql_existencia, {'correo': correo}).fetchone()
+
+    if correo_existente:
+        # Consulta para obtener la primera sucursal asociada al correo dado
+        sql_propietario = text("SELECT documento FROM propietario WHERE correo = :correo LIMIT 1")
+        resultado = db.execute(sql_propietario, {'correo': correo}).fetchone()
+
+        if resultado:
+            return resultado.documento  # Devuelve solo el documento como un valor simple
+
+        raise HTTPException(status_code=404, detail="No se encontraron sucursales para el correo proporcionado.")
+    
+    else:
+        raise HTTPException(status_code=400, detail="Correo no encontrado.")
+
+@app.post("/registro_propietario")
+async def registrar_propietario(propietario: pr, db:Session = Depends(get_db)):
+    documento_user = db.query(RegistroPropietario).filter(RegistroPropietario.documento == propietario.documento).first()
+    if documento_user:
+        raise HTTPException(status_code=400, detail="El documento de este Propietario ya existe")
+
+    encriptacion = bcrypt.hashpw(propietario.password.encode('utf-8'), bcrypt.gensalt())
+
+    nuevo_propietario = RegistroPropietario(
+        documento=propietario.documento,
+        nombre=propietario.nombre,
+        correo=propietario.correo,
+        password=encriptacion.decode('utf-8')
+    )
+    db.add(nuevo_propietario)
+    db.commit()
+    db.refresh(nuevo_propietario)
+    
+    return {
+        "documento": nuevo_propietario.documento,
+        "nombre": nuevo_propietario.nombre,
+        "correo": nuevo_propietario.correo
+    }
+
+@app.post("/registro_sucursal")
+async def registrar_propietario(sucursal: su, db:Session = Depends(get_db)):
+    nit_user = db.query(RegistroSucursal).filter(RegistroSucursal.documento == sucursal.nit).first()
+    if nit_user:
+        raise HTTPException(status_code=400, detail="El nit de esta Sucursal ya existe")
+
+    nueva_sucursal = RegistroSucursal(
+        nit=sucursal.nit,
+        rut=sucursal.rut,
+        nombre=sucursal.nombre,
+        direccion=sucursal.direccion,
+        telefono=sucursal.telefono,
+        correo=sucursal.correo,
+        documento=sucursal.documento
+    )
+    db.add(nueva_sucursal)
+    db.commit()
+    db.refresh(nueva_sucursal)
+    
+    return {
+        "nit": nueva_sucursal.nit,
+        "rut": nueva_sucursal.rut,
+        "nombre": nueva_sucursal.nombre,
+        "direccion": nueva_sucursal.direccion,
+        "telefono": nueva_sucursal.telefono,
+        "correo": nueva_sucursal.correo,
+        "documento": nueva_sucursal.documento,
+    }
 
 @app.post("/registrar_categoria")
 async def registrar_categoria(categoria: cat, db: Session = Depends(get_db)):

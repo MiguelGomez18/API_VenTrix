@@ -29,3 +29,12 @@ class Categoria(BaseModel):
     
 class Mesas(BaseModel):
     nombre:str
+
+class Sucursal(BaseModel):
+    nit: str
+    rut: str
+    nombre: str
+    direccion: str
+    telefono: str
+    correo: str
+    documento: int
