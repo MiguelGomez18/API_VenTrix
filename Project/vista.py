@@ -361,3 +361,25 @@ async def eliminar_producto(id: int, db: Session = Depends(get_db)):
     return {
         "detail": "Producto eliminado exitosamente"
     }
+
+@app.get("/ventas")
+def obtener_ventas(db: Session = Depends(get_db)):
+    # Ajusta la consulta SQL según la estructura de tu base de datos
+    sql = text("""
+        SELECT 
+            v.fecha_hora, 
+            v.cantidad, 
+            v.total 
+        FROM 
+            venta v
+    """)
+    resultados = db.execute(sql).fetchall()
+
+    # Procesar los resultados
+    ventas = [{
+        "fecha_hora": resultado.fecha_hora.strftime("%Y-%m-%d %H:%M:%S"),  # Convertir a string si es necesario
+        "cantidad": resultado.cantidad,
+        "total": resultado.total,
+    } for resultado in resultados]
+
+    return ventas
