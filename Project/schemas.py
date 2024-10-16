@@ -9,7 +9,7 @@ class Sucursal(BaseModel):
     telefono: str
     correo: str
     documento: int
-    
+
 class Propietario(BaseModel):
     documento:int
     nombre:str
@@ -31,3 +31,11 @@ class Categoria(BaseModel):
     
 class Mesas(BaseModel):
     nombre:str
+
+class Venta(BaseModel):
+    id: int
+    id_pedido: int
+    id_producto: int
+    cantidad: int
+    total: float
+    fecha_hora: datetime 
