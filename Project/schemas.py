@@ -39,3 +39,8 @@ class Venta(BaseModel):
     cantidad: int
     total: float
     fecha_hora: datetime 
+
+
+class TipoPago(BaseModel):
+    id: int
+    descripcion: str

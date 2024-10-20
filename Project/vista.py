@@ -11,6 +11,7 @@ from schemas import Producto as pro
 from schemas import Categoria as cat
 from schemas import Mesas as me
 from schemas import Sucursal as su
+from schemas import TipoPago as TipoPago
 from fastapi.middleware.cors import CORSMiddleware
 
 app=FastAPI()
@@ -450,3 +451,101 @@ def obtener_ventas(db: Session = Depends(get_db)):
     } for resultado in resultados]
 
     return ventas
+
+
+
+#-----------------------------pagos---------------------------
+@app.get("/tipo_pago")
+async def obtener_tipos_pago(db: Session = Depends(get_db)):
+   
+    sql = text("SELECT * FROM tipo_pago")
+    resultados = db.execute(sql).fetchall() 
+
+  
+    tipos_pago = [{
+        "id": resultado.id,
+        "descripcion": resultado.descripcion,
+    } for resultado in resultados]
+
+    return tipos_pago
+
+@app.get("/tipo_pago/{id}")
+async def obtener_tipo_pago(id: int, db: Session = Depends(get_db)):
+    
+    sql = text("SELECT * FROM tipo_pago WHERE id = :id")
+    resultado = db.execute(sql, {"id": id}).fetchone()  
+
+    if not resultado:
+        raise HTTPException(status_code=404, detail="Tipo de pago no encontrado")
+
+    tipo_pago = {
+        "id": resultado.id,
+        "descripcion": resultado.descripcion
+    }
+
+    return tipo_pago
+
+@app.post("/registrar_tipo_pago")
+async def registrar_tipo_pago(tipo_pago: TipoPago, db: Session = Depends(get_db)):
+   
+    sql = text("SELECT * FROM tipo_pago WHERE id = :id")
+    id_existente = db.execute(sql, {'id': tipo_pago.id}).fetchone()
+
+    if id_existente:
+        raise HTTPException(status_code=400, detail="El id de este tipo de pago ya existe")
+
+    
+    sql1 = text("""
+    INSERT INTO tipo_pago (id, descripcion) 
+    VALUES (:id, :descripcion)
+    """)
+
+    values = {
+        'id': tipo_pago.id,
+        'descripcion': tipo_pago.descripcion
+    }
+
+    db.execute(sql1, values)
+    db.commit()
+
+    return {
+        "id": tipo_pago.id,
+        "descripcion": tipo_pago.descripcion
+    }
+
+
+@app.put("/tipo_pago/{id}")
+async def actualizar_tipo_pago(id: int, tipo_pago: TipoPago, db: Session = Depends(get_db)):
+    
+    sql_select = text("SELECT * FROM tipo_pago WHERE id = :id")
+    resultado = db.execute(sql_select, {"id": id}).fetchone()
+
+    if not resultado:
+        raise HTTPException(status_code=404, detail="Tipo de pago no encontrado")
+
+ 
+    sql_update = text("UPDATE tipo_pago SET descripcion = :descripcion WHERE id = :id")
+    db.execute(sql_update, {"descripcion": tipo_pago.descripcion, "id": id})
+    db.commit()
+
+    return {"message": "Tipo de pago actualizado correctamente"}
+
+
+@app.delete("/tipo_pago/{id}")
+async def eliminar_tipo_pago(id: int, db: Session = Depends(get_db)):
+    
+    sql_select = text("SELECT * FROM tipo_pago WHERE id = :id")
+    resultado = db.execute(sql_select, {"id": id}).fetchone()
+
+    if not resultado:
+        raise HTTPException(status_code=404, detail="Tipo de pago no encontrado")
+
+    
+    sql_delete = text("DELETE FROM tipo_pago WHERE id = :id")
+    db.execute(sql_delete, {"id": id})
+    db.commit()
+
+    return {"message": "Tipo de pago eliminado correctamente"}
+
+
+#Miguel es gay
