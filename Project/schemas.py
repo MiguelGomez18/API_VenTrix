@@ -44,3 +44,7 @@ class Venta(BaseModel):
 class TipoPago(BaseModel):
     id: int
     descripcion: str
+
+
+class Mesa_rapida(BaseModel):
+    nombre: str

@@ -90,6 +90,20 @@ async def obtener_mesas(db: Session = Depends(get_db)):
 
     return mesas
 
+@app.get("/compra_rapida")
+async def obtener_compra_rapida(db: Session = Depends(get_db)):
+    # Consulta para obtener todas las entradas de compra rápida
+    sql = text("SELECT * FROM compra_rapida")
+    resultados = db.execute(sql).fetchall()  # Obtiene todas las entradas de compra rápida
+
+    # Convierte los resultados en una lista de diccionarios
+    compra_rapida = [{
+        "id": resultado.id,
+        "nombre": resultado.nombre,
+    } for resultado in resultados]
+
+    return compra_rapida
+
 @app.get("/sucursales/{documento}")
 def obtener_sucursales(documento: int, db: Session = Depends(get_db)):
     # Consulta para verificar si existen sucursales con el documento dado
