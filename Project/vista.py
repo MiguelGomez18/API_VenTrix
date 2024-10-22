@@ -79,32 +79,30 @@ def obtener_productos(db: Session = Depends(get_db)):
 @app.get("/mesas")
 async def obtener_mesas(db: Session = Depends(get_db)):
     # Consulta para obtener todas las mesas
-    sql = text("SELECT * FROM mesa where estado='Fisica'")
+    sql = text("SELECT * FROM mesa")
     resultados = db.execute(sql).fetchall()  # Obtiene todas las mesas
 
     # Convierte los resultados en una lista de diccionarios
     mesas = [{
         "id": resultado.id,
         "nombre": resultado.nombre,
-        "estado": resultado.estado,
     } for resultado in resultados]
 
     return mesas
 
-@app.get("/mesarapida")
-async def obtener_mesa_rapida(db: Session = Depends(get_db)):
-    # Consulta para obtener todas las mesas
-    sql = text("SELECT * FROM mesa where estado='Rapida'")
-    resultados = db.execute(sql).fetchall()  # Obtiene todas las mesas
+@app.get("/compra_rapida")
+async def obtener_compra_rapida(db: Session = Depends(get_db)):
+    # Consulta para obtener todas las entradas de compra rápida
+    sql = text("SELECT * FROM compra_rapida")
+    resultados = db.execute(sql).fetchall()  # Obtiene todas las entradas de compra rápida
 
     # Convierte los resultados en una lista de diccionarios
-    mesas = [{
+    compra_rapida = [{
         "id": resultado.id,
         "nombre": resultado.nombre,
-        "estado": resultado.estado,
     } for resultado in resultados]
 
-    return mesas
+    return compra_rapida
 
 @app.get("/sucursales/{documento}")
 def obtener_sucursales(documento: int, db: Session = Depends(get_db)):
@@ -243,13 +241,12 @@ async def registrar_mesa(mesa: me, db: Session = Depends(get_db)):
 
     # Insertar nueva mesa
     sqlingresar = text("""
-                       INSERT INTO mesa (nombre,estado)
-                       VALUES (:nombre, :estado)
+                       INSERT INTO mesa (nombre)
+                       VALUES (:nombre)
                        """)
 
     values = {
-        'nombre': mesa.nombre,
-        'estado': mesa.estado
+        'nombre': mesa.nombre
     }
 
     result = db.execute(sqlingresar, values)
@@ -260,8 +257,7 @@ async def registrar_mesa(mesa: me, db: Session = Depends(get_db)):
 
     return {
         "id": nuevo_id,
-        "nombre": mesa.nombre,
-        "estado": mesa.estado
+        "nombre": mesa.nombre
     }
 
 
@@ -470,6 +466,69 @@ def obtener_ventas(db: Session = Depends(get_db)):
 
     return ventas
 
+@app.get("/mayorproductodia")
+def obtener_ventas(db: Session = Depends(get_db)):
+    # Consulta SQL ajustada para obtener los productos más vendidos
+    sql = text("""
+        SELECT 
+            p.id AS id_producto, 
+            p.nombre, 
+            SUM(v.cantidad) AS cantidad
+        FROM 
+            venta v
+        JOIN 
+            producto p ON v.id_producto = p.id
+        GROUP BY 
+            p.id, p.nombre
+        ORDER BY 
+            cantidad DESC
+        LIMIT 5
+    """)
+    resultados = db.execute(sql).fetchall()
+
+    # Procesar los resultados
+    ventas = [{
+        "id_producto": resultado.id_producto,
+        "nombre": resultado.nombre,
+        "cantidad": resultado.cantidad,
+    } for resultado in resultados]
+
+    return ventas
+@app.get("/productocategoria") 
+def obtener_ventas(db: Session = Depends(get_db)):
+    try:
+        # Consulta SQL ajustada para obtener los productos más vendidos, incluyendo la categoría
+        sql = text(""" 
+            SELECT 
+                p.id AS id_producto, 
+                p.nombre, 
+                SUM(v.cantidad) AS cantidad,
+                c.nombre AS categoria  -- Cambiado para referirse a la tabla 'categoria'
+            FROM 
+                venta v
+            JOIN 
+                producto p ON v.id_producto = p.id
+            JOIN 
+                categoria c ON p.id_categoria = c.id  -- Agregar JOIN con la tabla categoria
+            GROUP BY 
+                p.id, p.nombre, c.nombre  -- Cambiado para usar 'c.nombre' en lugar de 'p.categoria'
+            ORDER BY 
+                cantidad DESC
+            LIMIT 5
+        """)
+        resultados = db.execute(sql).fetchall()
+
+        # Procesar los resultados
+        ventas = [{
+            "id_producto": resultado.id_producto,
+            "nombre": resultado.nombre,
+            "cantidad": resultado.cantidad,
+            "categoria": resultado.categoria,  # Incluir la categoría
+        } for resultado in resultados]
+
+        return ventas
+    except Exception as e:
+        return {"error": str(e)}, 500
 
 
 #-----------------------------pagos---------------------------
