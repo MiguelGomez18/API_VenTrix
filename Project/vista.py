@@ -79,30 +79,32 @@ def obtener_productos(db: Session = Depends(get_db)):
 @app.get("/mesas")
 async def obtener_mesas(db: Session = Depends(get_db)):
     # Consulta para obtener todas las mesas
-    sql = text("SELECT * FROM mesa")
+    sql = text("SELECT * FROM mesa where estado='Fisica'")
     resultados = db.execute(sql).fetchall()  # Obtiene todas las mesas
 
     # Convierte los resultados en una lista de diccionarios
     mesas = [{
         "id": resultado.id,
         "nombre": resultado.nombre,
+        "estado": resultado.estado,
     } for resultado in resultados]
 
     return mesas
 
-@app.get("/compra_rapida")
-async def obtener_compra_rapida(db: Session = Depends(get_db)):
-    # Consulta para obtener todas las entradas de compra rápida
-    sql = text("SELECT * FROM compra_rapida")
-    resultados = db.execute(sql).fetchall()  # Obtiene todas las entradas de compra rápida
+@app.get("/mesarapida")
+async def obtener_mesa_rapida(db: Session = Depends(get_db)):
+    # Consulta para obtener todas las mesas
+    sql = text("SELECT * FROM mesa where estado='Rapida'")
+    resultados = db.execute(sql).fetchall()  # Obtiene todas las mesas
 
     # Convierte los resultados en una lista de diccionarios
-    compra_rapida = [{
+    mesas = [{
         "id": resultado.id,
         "nombre": resultado.nombre,
+        "estado": resultado.estado,
     } for resultado in resultados]
 
-    return compra_rapida
+    return mesas
 
 @app.get("/sucursales/{documento}")
 def obtener_sucursales(documento: int, db: Session = Depends(get_db)):
@@ -241,12 +243,13 @@ async def registrar_mesa(mesa: me, db: Session = Depends(get_db)):
 
     # Insertar nueva mesa
     sqlingresar = text("""
-                       INSERT INTO mesa (nombre)
-                       VALUES (:nombre)
+                       INSERT INTO mesa (nombre,estado)
+                       VALUES (:nombre, :estado)
                        """)
 
     values = {
-        'nombre': mesa.nombre
+        'nombre': mesa.nombre,
+        'estado': mesa.estado
     }
 
     result = db.execute(sqlingresar, values)
@@ -257,7 +260,8 @@ async def registrar_mesa(mesa: me, db: Session = Depends(get_db)):
 
     return {
         "id": nuevo_id,
-        "nombre": mesa.nombre
+        "nombre": mesa.nombre,
+        "estado": mesa.estado
     }
 
 
@@ -560,6 +564,3 @@ async def eliminar_tipo_pago(id: int, db: Session = Depends(get_db)):
     db.commit()
 
     return {"message": "Tipo de pago eliminado correctamente"}
-
-
-#Miguel es gay

@@ -1,5 +1,6 @@
 from pydantic import BaseModel
 from datetime import datetime
+from enum import Enum
 
 class Sucursal(BaseModel):
     nit: str
@@ -28,9 +29,16 @@ class Producto(BaseModel):
 
 class Categoria(BaseModel):
     nombre:str
-    
+
+# Definir un Enum para los estados
+class EstadoMesa(str, Enum):
+    fisica = "Fisica"
+    rapida = "Rapida"
+
+# Definir la clase Mesas con el Enum
 class Mesas(BaseModel):
-    nombre:str
+    nombre: str
+    estado: EstadoMesa
 
 class Venta(BaseModel):
     id: int
