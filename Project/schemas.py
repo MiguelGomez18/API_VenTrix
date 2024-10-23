@@ -26,6 +26,14 @@ class Producto(BaseModel):
     nombre: str
     precio: int
     id_categoria:int
+    id_sucursal:str
+    
+class ProductoEditar(BaseModel):
+    id: int 
+    nombre: str
+    precio: int
+    id_categoria:int
+
 
 class Categoria(BaseModel):
     nombre:str

@@ -13,6 +13,7 @@ from schemas import Mesas as me
 from schemas import MesasActualizar as meas
 from schemas import Sucursal as su
 from schemas import TipoPago as TipoPago
+from schemas import ProductoEditar as proedi
 from fastapi.middleware.cors import CORSMiddleware
 
 app=FastAPI()
@@ -47,18 +48,19 @@ async def login(propietario:Login,db:Session=Depends(get_db)):
         "correo":db_user.correo
     }
 
-@app.get("/productos")
-def obtener_productos(db: Session = Depends(get_db)):
+@app.get("/productos/{nit}")
+def obtener_productos( nit: str, db: Session = Depends(get_db)):
     # Consulta para obtener todos los productos
-    sql = text("SELECT * FROM producto")
-    resultados = db.execute(sql).fetchall()  # Obtiene todos los productos
+    sql = text("SELECT * FROM producto where id_sucursal = :nit")
+    resultados = db.execute(sql,{"nit": nit}).fetchall()  # Obtiene todos los productos
 
     # Convierte los resultados en una lista de diccionarios
     productos = [{
         "id": resultado.id,
         "nombre": resultado.nombre,
         "precio": resultado.precio,
-        "id_categoria": resultado.id_categoria
+        "id_categoria": resultado.id_categoria,
+        "id_sucursal":resultado.id_sucursal
     } for resultado in resultados]
 
     return productos
@@ -276,22 +278,23 @@ async def registrar_mesa(mesa: me, db: Session = Depends(get_db)):
 @app.post("/registrar_producto")
 async def registrar_producto(producto: pro, db: Session = Depends(get_db)):
 
-    sql = text("SELECT * FROM producto WHERE id = :id")
-    id_existente = db.execute(sql, {'id': producto.id}).fetchone()
+    sql = text("SELECT * FROM producto WHERE nombre = :nombre and id_sucursal = :id_sucursal")
+    id_existente = db.execute(sql, {'nombre': producto.nombre,'id_sucursal': producto.id_sucursal}).fetchone()
 
     if id_existente:
-        raise HTTPException(status_code=400, detail="El id de este producto ya existe")
+        raise HTTPException(status_code=400, detail="El id de este producto ya existe en esta sucursal")
 
     sql1 = text("""
-    INSERT INTO producto (id, nombre, precio, id_categoria) 
-    VALUES (:id, :nombre, :precio, :id_categoria)
+    INSERT INTO producto (id, nombre, precio, id_categoria,id_sucursal) 
+    VALUES (:id, :nombre, :precio, :id_categoria, :id_sucursal)
     """)
 
     values = {
         'id': producto.id,
         'nombre': producto.nombre,
         'precio': producto.precio,
-        'id_categoria': producto.id_categoria
+        'id_categoria': producto.id_categoria,
+        'id_sucursal' : producto.id_sucursal
     }
 
     db.execute(sql1, values)
@@ -301,7 +304,8 @@ async def registrar_producto(producto: pro, db: Session = Depends(get_db)):
         "id": producto.id,
         "nombre": producto.nombre,
         "precio": producto.precio,
-        "id_categoria": producto.id_categoria
+        "id_categoria": producto.id_categoria,
+        "id_sucursal": producto.id_sucursal
     }
 
 @app.put("/actualizar_mesa/")
@@ -366,7 +370,7 @@ async def actualizar_categoria(categoria: cat, db: Session = Depends(get_db)):
 
 
 @app.put("/actualizar_producto/")
-async def actualizar_producto(producto: pro, db: Session = Depends(get_db)):
+async def actualizar_producto(producto: proedi, db: Session = Depends(get_db)):
 
     sql1 = text("""
     UPDATE producto 
