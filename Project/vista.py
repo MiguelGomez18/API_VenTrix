@@ -241,8 +241,8 @@ async def registrar_categoria(categoria: cat, db: Session = Depends(get_db)):
 @app.post("/registrar_mesa")
 async def registrar_mesa(mesa: me, db: Session = Depends(get_db)):
     # Verificar si ya existe una mesa con el mismo nombre
-    sql = text("SELECT * FROM mesa WHERE nombre = :nombre")
-    nombre_existente = db.execute(sql, {'nombre': mesa.nombre}).fetchone()
+    sql = text("SELECT * FROM mesa WHERE nombre = :nombre and id_sucursal = :id_sucursal")
+    nombre_existente = db.execute(sql, {'nombre': mesa.nombre, 'id_sucursal': mesa.id_sucursal}).fetchone()
 
     if nombre_existente:
         raise HTTPException(status_code=400, detail="El nombre de la mesa ya existe")
