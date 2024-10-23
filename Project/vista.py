@@ -322,7 +322,7 @@ async def actualizar_mesa(mesa: me, db: Session = Depends(get_db)):
 
     values = {
         'id': mesa.id,
-        'nombre': mesa.nombre
+        'nombre': mesa.nombre,
     }
 
     db.execute(sql1, values)
