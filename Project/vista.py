@@ -10,6 +10,7 @@ from schemas import Login
 from schemas import Producto as pro
 from schemas import Categoria as cat
 from schemas import Mesas as me
+from schemas import MesasActualizar as meas
 from schemas import Sucursal as su
 from schemas import TipoPago as TipoPago
 from fastapi.middleware.cors import CORSMiddleware
@@ -255,7 +256,7 @@ async def registrar_mesa(mesa: me, db: Session = Depends(get_db)):
     values = {
         'nombre': mesa.nombre,
         'estado': mesa.estado,
-        'id_sucursal': mesa.id_sucursal
+        'id_sucursal': mesa.id_sucursal,
     }
 
     result = db.execute(sqlingresar, values)
@@ -304,7 +305,7 @@ async def registrar_producto(producto: pro, db: Session = Depends(get_db)):
     }
 
 @app.put("/actualizar_mesa/")
-async def actualizar_mesa(mesa: me, db: Session = Depends(get_db)):
+async def actualizar_mesa(mesa: meas, db: Session = Depends(get_db)):
 
     # Verifica si la mesa con el ID proporcionado existe
     sql = text("SELECT * FROM mesa WHERE id = :id")

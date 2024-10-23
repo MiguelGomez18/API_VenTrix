@@ -41,6 +41,10 @@ class Mesas(BaseModel):
     estado: EstadoMesa
     id_sucursal: str
 
+class MesasActualizar(BaseModel):
+    id: int
+    nombre: str
+
 class Venta(BaseModel):
     id: int
     id_pedido: int
