@@ -248,13 +248,14 @@ async def registrar_mesa(mesa: me, db: Session = Depends(get_db)):
 
     # Insertar nueva mesa
     sqlingresar = text("""
-                        INSERT INTO mesa (nombre,estado)
-                        VALUES (:nombre, :estado)
+                        INSERT INTO mesa (nombre,estado, id_sucursal)
+                        VALUES (:nombre, :estado, :id_sucursal)
                        """)
 
     values = {
         'nombre': mesa.nombre,
-        'estado': mesa.estado
+        'estado': mesa.estado,
+        'id_sucursal': mesa.id_sucursal
     }
 
     result = db.execute(sqlingresar, values)
@@ -266,7 +267,8 @@ async def registrar_mesa(mesa: me, db: Session = Depends(get_db)):
     return {
         "id": nuevo_id,
         "nombre": mesa.nombre,
-        "estado": mesa.estado
+        "estado": mesa.estado,
+        "id_sucursal": mesa.id_sucursal
     }
 
 

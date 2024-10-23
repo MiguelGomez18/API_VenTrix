@@ -39,6 +39,7 @@ class EstadoMesa(str, Enum):
 class Mesas(BaseModel):
     nombre: str
     estado: EstadoMesa
+    id_sucursal: str
 
 class Venta(BaseModel):
     id: int
