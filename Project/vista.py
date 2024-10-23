@@ -76,32 +76,36 @@ def obtener_productos(db: Session = Depends(get_db)):
 
     return categorias
 
-@app.get("/mesas")
-async def obtener_mesas(db: Session = Depends(get_db)):
+@app.get("/mesas/{nit}")
+async def obtener_mesas(nit: str,db: Session = Depends(get_db)):
     # Consulta para obtener todas las mesas
-    sql = text("SELECT * FROM mesa where estado='Fisica'")
-    resultados = db.execute(sql).fetchall()  # Obtiene todas las mesas
+    sql = text("SELECT * FROM mesa where estado='Fisica' AND id_sucursal = :nit")
+    resultados = db.execute(sql, {"nit": nit}).fetchall()
+  # Obtiene todas las mesas
 
     # Convierte los resultados en una lista de diccionarios
     mesas = [{
         "id": resultado.id,
         "nombre": resultado.nombre,
         "estado": resultado.estado,
+        "id_sucursal": resultado.id_sucursal
     } for resultado in resultados]
 
     return mesas
 
-@app.get("/mesarapida")
-async def obtener_mesa_rapida(db: Session = Depends(get_db)):
+@app.get("/mesarapida/{nit}")
+async def obtener_mesa_rapida(nit: str,db: Session = Depends(get_db)):
     # Consulta para obtener todas las mesas
-    sql = text("SELECT * FROM mesa where estado='Rapida'")
-    resultados = db.execute(sql).fetchall()  # Obtiene todas las mesas
+    sql = text("SELECT * FROM mesa where estado='Rapida' AND id_sucursal = :nit")
+    resultados = db.execute(sql, {"nit": nit}).fetchall()
+  # Obtiene todas las mesas
 
     # Convierte los resultados en una lista de diccionarios
     mesas = [{
         "id": resultado.id,
         "nombre": resultado.nombre,
         "estado": resultado.estado,
+        "id_sucursal": resultado.id_sucursal
     } for resultado in resultados]
 
     return mesas
@@ -212,6 +216,7 @@ async def registrar_categoria(categoria: cat, db: Session = Depends(get_db)):
 
     if nombre_existente:
         raise HTTPException(status_code=400, detail="El nombre de la categoría ya existe")
+    
     sqlingresar = text("""
                        INSERT INTO categoria (nombre)
                        values (:nombre)
