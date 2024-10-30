@@ -1,5 +1,5 @@
 import bcrypt
-from fastapi import FastAPI,Depends,HTTPException
+from fastapi import FastAPI,Depends,HTTPException,Form,UploadFile,File
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from conexion import crear,get_db
@@ -639,3 +639,44 @@ async def eliminar_tipo_pago(id: int, db: Session = Depends(get_db)):
     db.commit()
 
     return {"message": "Tipo de pago eliminado correctamente"}
+
+
+
+
+@app.post("/insertardos")
+async def registrar_cliente(
+    documento: int = Form(...),
+    nombre: str = Form(...),
+    apellido: str = Form(...),
+    correo: str = Form(...),
+    celular: str = Form(...),
+    sexo: str = Form(...),
+    edad: int = Form(...),
+    file: UploadFile = File(...),  # Asegúrate de definir el archivo con File(...) para multipart/form-data
+    db: Session = Depends(get_db)
+):
+    # Procesa el archivo subido
+    if file.content_type not in ["image/jpeg", "image/png"]:
+        raise HTTPException(status_code=400, detail="Formato de archivo no soportado")
+    
+    # Ruta de guardado del archivo
+    file_location = f"micarpetaimg/{file.filename}"
+
+    # Guarda el archivo en el servidor
+    with open(file_location, "wb") as buffer:
+        buffer.write(await file.read())
+    
+    # Agrega los datos del cliente
+    cliente_data = {
+        "documento": documento,
+        "nombre": nombre,
+        "apellido": apellido,
+        "correo": correo,
+        "celular": celular,
+        "sexo": sexo,
+        "edad": edad,
+        "imagen": file_location  # Ruta del archivo guardado
+    }
+
+    # Resto del código para insertar cliente en la base de datos
+    # ...

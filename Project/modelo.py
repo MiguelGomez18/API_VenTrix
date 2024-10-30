@@ -2,6 +2,9 @@ from sqlalchemy import String,Integer,Column,ForeignKey
 from conexion import base 
 from sqlalchemy.orm import relationship
 from datetime import datetime
+from pydantic import BaseModel
+from typing import Optional
+from fastapi import Form
 
 class RegistroPropietario(base):
     __tablename__="propietario"
@@ -21,3 +24,12 @@ class RegistroSucursal(base):
     correo = Column(String(60),unique=True)
     documento = Column(Integer, ForeignKey('propietario.documento'))
 
+class ClienteBase(BaseModel):
+    documento: int = Form(...)
+    nombre: str = Form(...)
+    apellido: str = Form(...)
+    correo: str = Form(...)
+    celular: str = Form(...)
+    sexo: str = Form(...)
+    edad: int = Form(...)
+    imagen: Optional[str] = None
