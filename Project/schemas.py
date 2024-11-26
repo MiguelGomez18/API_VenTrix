@@ -1,71 +1,94 @@
 from pydantic import BaseModel
-from datetime import datetime
-from enum import Enum
+from datetime import date
+from typing import List, Optional
+from modelo import RolUsuario, EstadoRestaurante, EstadoSucursal
 
-class Sucursal(BaseModel):
-    nit: str
-    rut: str
+class SucursalSchema(BaseModel):
+    id: str
     nombre: str
     direccion: str
+    ciudad: str
     telefono: str
+    fecha_apertura: date
+    estado: EstadoSucursal
+    administrador: Optional[str] = None
+
+    class Config:
+        orm_mode = True
+
+class RestauranteSchema(BaseModel):
+    id: str
+    nombre: str
+    descripcion: Optional[str] = None
+    telefono: str
+    direccion: str
     correo: str
-    documento: int
+    imagen: str
+    fecha_creacion: date
+    fecha_finalizacion: date
+    estado: EstadoRestaurante
+    sucursales: Optional[List[SucursalSchema]] = None
 
-class Propietario(BaseModel):
-    documento:int
-    nombre:str
-    correo:str
-    password:str
+    class Config:
+        orm_mode = True
 
-class Login(BaseModel):
-    correo:str
-    password:str
-
-class Producto(BaseModel):
-    id: int 
+class RestauranteCreateSchema(BaseModel):
     nombre: str
-    precio: int
-    id_categoria:int
-    id_sucursal:str
-    
-class ProductoEditar(BaseModel):
-    id: int 
+    descripcion: Optional[str] = None
+    telefono: str
+    direccion: str
+    correo: str
+    imagen: str
+    fecha_creacion: date
+    fecha_finalizacion: date
+    estado: str
+    id_usuario: str
+
+    class Config:
+        orm_mode = True
+
+class RestauranteUpdateSchema(BaseModel):
+    nombre: Optional[str]
+    descripcion: Optional[str]
+    telefono: Optional[str]
+    direccion: Optional[str]
+    correo: Optional[str]
+    imagen: Optional[str]
+    fecha_creacion: Optional[date]
+    fecha_finalizacion: Optional[date]
+    estado: Optional[str]
+    id_usuario: Optional[str]
+
+    class Config:
+        orm_mode = True
+
+class UsuarioSchema(BaseModel):
+    documento: str
     nombre: str
-    precio: int
-    id_categoria:int
+    correo: str
+    rol: RolUsuario
+    fecha_creacion: date
+    sucursal: str
+    restaurantes: Optional[List[RestauranteSchema]] = None
 
+    class Config:
+        orm_mode = True
 
-class Categoria(BaseModel):
-    nombre:str
-
-# Definir un Enum para los estados
-class EstadoMesa(str, Enum):
-    fisica = "Fisica"
-    rapida = "Rapida"
-
-# Definir la clase Mesas con el Enum
-class Mesas(BaseModel):
+class UsuarioCreateSchema(BaseModel):
+    documento: str
     nombre: str
-    estado: EstadoMesa
-    id_sucursal: str
+    correo: str
+    password: str
+    rol: RolUsuario
+    fecha_creacion: date
+    sucursal: str
 
-class MesasActualizar(BaseModel):
-    id: int
-    nombre: str
+    class Config:
+        orm_mode = True
 
-class Venta(BaseModel):
-    id: int
-    id_pedido: int
-    id_producto: int
-    cantidad: int
-    total: float
-    fecha_hora: datetime 
+class UsuarioLoginSchema(BaseModel):
+    correo: str
+    password: str
 
-
-class TipoPago(BaseModel):
-    id: int
-    descripcion: str
-
-
-class Mesa_rapida(BaseModel):
-    nombre: str
+    class Config:
+        orm_mode = True

@@ -1,54 +1,212 @@
-import bcrypt
-from fastapi import FastAPI,Depends,HTTPException,Form,UploadFile,File
+from fastapi import FastAPI, Depends, HTTPException, Path
 from sqlalchemy.orm import Session
-from sqlalchemy import text
-from conexion import crear,get_db
-from modelo import base,RegistroPropietario,RegistroSucursal
-from schemas import Sucursal as su
-from schemas import Propietario as pr
-from schemas import Login 
-from schemas import Producto as pro
-from schemas import Categoria as cat
-from schemas import Mesas as me
-from schemas import MesasActualizar as meas
-from schemas import Sucursal as su
-from schemas import TipoPago as TipoPago
-from schemas import ProductoEditar as proedi
+from sqlalchemy.exc import NoResultFound
+from typing import List, Optional
+from conexion import crear, get_db
+from modelo import base, Usuario, RolUsuario, Restaurante, Sucursal
+from schemas import UsuarioSchema, UsuarioCreateSchema, UsuarioLoginSchema, RestauranteCreateSchema, RestauranteSchema, RestauranteUpdateSchema, SucursalSchema
 from fastapi.middleware.cors import CORSMiddleware
 
-app=FastAPI()
+app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173"], 
     allow_credentials=True,
-    allow_methods=["*"], 
+    allow_methods=["*"],
     allow_headers=["*"],
 )
 
 base.metadata.create_all(bind=crear)
 
-@app.get("/propietario/documento/", response_model=list[str])
-async def getidd(db:Session=Depends(get_db)):
-    documentos=db.query(RegistroPropietario.documento).all()
-    return[doc[0] for doc in documentos]
+@app.post("/usuario", response_model=UsuarioSchema, status_code=201)
+async def crear_usuario(usuario: UsuarioCreateSchema, db: Session = Depends(get_db)):
+    nuevo_usuario = Usuario(**usuario.dict())
+    db.add(nuevo_usuario)
+    db.commit()
+    db.refresh(nuevo_usuario)
+    return nuevo_usuario
 
+@app.post("/usuario/login", response_model=UsuarioSchema)
+async def login(usuario: UsuarioLoginSchema, db: Session = Depends(get_db)):
+    db_usuario = (
+        db.query(Usuario)
+        .filter(Usuario.correo == usuario.correo, Usuario.password == usuario.password)
+        .first()
+    )
+    if not db_usuario:
+        raise HTTPException(status_code=400, detail="Correo o contraseña incorrectos")
+    return db_usuario
 
-@app.post("/login")
-async def login(propietario:Login,db:Session=Depends(get_db)):
-    db_user=db.query(RegistroPropietario).filter(RegistroPropietario.correo==propietario.correo).first()
-    if db_user is None:
-        raise HTTPException(status_code=400, detail="Correo no existe")
-    if not bcrypt.checkpw(propietario.password.encode('utf-8'),db_user.password.encode('utf-8')):
-        raise HTTPException(status_code=400, detail="Contraseña incorrecta")
+@app.get("/usuario/correo/{correo}", response_model=str)
+async def obtener_usuario_por_correo(correo: str, db: Session = Depends(get_db)):
+    db_usuario = db.query(Usuario).filter(Usuario.correo == correo).first()
+    if not db_usuario:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    return db_usuario.documento
+
+@app.get("/usuario/sucursal/{documento}", response_model=str)
+async def obtener_sucursal_por_documento(documento: str, db: Session = Depends(get_db)):
+    db_usuario = db.query(Usuario).filter(Usuario.documento == documento).first()
+    if not db_usuario:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    return db_usuario.sucursal
+
+@app.get("/usuario/documento/{correo}", response_model=RolUsuario)
+async def obtener_rol_por_correo(correo: str, db: Session = Depends(get_db)):
+    db_usuario = db.query(Usuario).filter(Usuario.correo == correo).first()
+    if not db_usuario:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    return db_usuario.rol
+
+@app.get("/usuario", response_model=List[UsuarioSchema])
+async def listar_usuarios(db: Session = Depends(get_db)):
+    usuarios = db.query(Usuario).all()
+    return usuarios
+
+@app.get("/usuario/{id}", response_model=UsuarioSchema)
+async def obtener_usuario_por_id(id: str, db: Session = Depends(get_db)):
+    db_usuario = db.query(Usuario).filter(Usuario.documento == id).first()
+    if not db_usuario:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    return db_usuario
+
+@app.get("/usuario/nombre/{id}", response_model=str)
+async def obtener_nombre_por_documento(id: str, db: Session = Depends(get_db)):
+    db_usuario = db.query(Usuario).filter(Usuario.documento == id).first()
+    if not db_usuario:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    return db_usuario.nombre
+
+@app.put("/usuario/{id}", response_model=UsuarioSchema)
+async def actualizar_usuario(id: str, usuario: UsuarioCreateSchema, db: Session = Depends(get_db)):
+    db_usuario = db.query(Usuario).filter(Usuario.documento == id).first()
+    if not db_usuario:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    for key, value in usuario.dict().items():
+        setattr(db_usuario, key, value)
+    db.commit()
+    db.refresh(db_usuario)
+    return db_usuario
+
+@app.delete("/usuario/{id}", status_code=204)
+async def eliminar_usuario(id: str, db: Session = Depends(get_db)):
+    db_usuario = db.query(Usuario).filter(Usuario.documento == id).first()
+    if not db_usuario:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    db.delete(db_usuario)
+    db.commit()
+
+@app.post("/restaurante", response_model=RestauranteSchema, status_code=201)
+async def crear_restaurante(restaurante: RestauranteCreateSchema, db: Session = Depends(get_db)):
+    nuevo_restaurante = Restaurante(**restaurante.dict())
+    db.add(nuevo_restaurante)
+    db.commit()
+    db.refresh(nuevo_restaurante)
+    return nuevo_restaurante
+
+@app.get("/restaurante", response_model=List[RestauranteSchema])
+async def listar_restaurantes(db: Session = Depends(get_db)):
+    restaurantes = db.query(Restaurante).all()
+    return restaurantes
+
+@app.get("/restaurante/{id}", response_model=str)
+async def obtener_restaurante_por_id(id: str, db: Session = Depends(get_db)):
+    restaurante = db.query(Restaurante).filter(Restaurante.id == id).first()
+    if not restaurante:
+        raise HTTPException(status_code=404, detail="Restaurante no encontrado")
+    return restaurante.nombre
+
+@app.get("/restaurante/id_usuario/{id_usuario}", response_model=str)
+async def obtener_id_usuario(id_usuario: str, db: Session = Depends(get_db)):
+    restaurante = db.query(Restaurante).filter(Restaurante.id_usuario == id_usuario).first()
+    if not restaurante:
+        raise HTTPException(status_code=404, detail="Restaurante no encontrado para este usuario")
+    return restaurante.id
+
+@app.put("/restaurante/{id}", response_model=RestauranteSchema)
+async def actualizar_restaurante(
+    id: str, restaurante: RestauranteUpdateSchema, db: Session = Depends(get_db)
+):
+    db_restaurante = db.query(Restaurante).filter(Restaurante.id == id).first()
+    if not db_restaurante:
+        raise HTTPException(status_code=404, detail="Restaurante no encontrado")
     
-    return{
-        "mensaje":"Inicio de Sesion OK",
-        "nombre":db_user.nombre,
-        "correo":db_user.correo
-    }
+    for key, value in restaurante.dict(exclude_unset=True).items():
+        setattr(db_restaurante, key, value)
+    
+    db.commit()
+    db.refresh(db_restaurante)
+    return db_restaurante
 
-@app.get("/productos/{nit}")
+@app.delete("/restaurante/{id}", status_code=204)
+async def eliminar_restaurante(id: str, db: Session = Depends(get_db)):
+    db_restaurante = db.query(Restaurante).filter(Restaurante.id == id).first()
+    if not db_restaurante:
+        raise HTTPException(status_code=404, detail="Restaurante no encontrado")
+    db.delete(db_restaurante)
+    db.commit()
+
+@app.post("/sucursal", response_model=SucursalSchema, status_code=201)
+async def crear_sucursal(sucursal: SucursalSchema, db: Session = Depends(get_db)):
+    nueva_sucursal = Sucursal(**sucursal.dict())
+    db.add(nueva_sucursal)
+    db.commit()
+    db.refresh(nueva_sucursal)
+    return nueva_sucursal
+
+
+@app.get("/sucursal/{id}", response_model=SucursalSchema)
+async def obtener_sucursal(id: str, db: Session = Depends(get_db)):
+    sucursal = db.query(Sucursal).filter(Sucursal.id == id).first()
+    if not sucursal:
+        raise HTTPException(status_code=404, detail="Sucursal no encontrada")
+    return sucursal
+
+
+@app.get("/sucursal/restaurante/{id_restaurante}", response_model=List[SucursalSchema])
+async def obtener_sucursales_por_restaurante(id_restaurante: str, db: Session = Depends(get_db)):
+    sucursales = db.query(Sucursal).filter(Sucursal.id_restaurante == id_restaurante).all()
+    if not sucursales:
+        raise HTTPException(status_code=404, detail="No se encontraron sucursales para este restaurante")
+    return sucursales
+
+
+@app.put("/sucursal/{id}", response_model=SucursalSchema)
+async def actualizar_sucursal(id: str, sucursal: SucursalSchema, db: Session = Depends(get_db)):
+    db_sucursal = db.query(Sucursal).filter(Sucursal.id == id).first()
+    if not db_sucursal:
+        raise HTTPException(status_code=404, detail="Sucursal no encontrada")
+    
+    for key, value in sucursal.dict(exclude_unset=True).items():
+        setattr(db_sucursal, key, value)
+    
+    db.commit()
+    db.refresh(db_sucursal)
+    return db_sucursal
+
+
+@app.delete("/sucursal/{id}", status_code=204)
+async def eliminar_sucursal(id: str, db: Session = Depends(get_db)):
+    db_sucursal = db.query(Sucursal).filter(Sucursal.id == id).first()
+    if not db_sucursal:
+        raise HTTPException(status_code=404, detail="Sucursal no encontrada")
+    
+    db.delete(db_sucursal)
+    db.commit()
+
+
+@app.get("/sucursal/administrador/{administrador}", response_model=str)
+async def obtener_sucursal_por_administrador(administrador: str, db: Session = Depends(get_db)):
+    sucursal = db.query(Sucursal).filter(Sucursal.administrador == administrador).first()
+    if not sucursal:
+        raise HTTPException(status_code=404, detail="No se encontró una sucursal para este administrador")
+    return sucursal.id
+
+
+
+
+'''@app.get("/productos/{nit}")
 def obtener_productos( nit: str, db: Session = Depends(get_db)):
     # Consulta para obtener todos los productos
     sql = text("SELECT * FROM producto where id_sucursal = :nit")
@@ -644,39 +802,53 @@ async def eliminar_tipo_pago(id: int, db: Session = Depends(get_db)):
 
 
 @app.post("/insertardos")
-async def registrar_cliente(
-    documento: int = Form(...),
-    nombre: str = Form(...),
-    apellido: str = Form(...),
-    correo: str = Form(...),
-    celular: str = Form(...),
-    sexo: str = Form(...),
-    edad: int = Form(...),
-    file: UploadFile = File(...),  # Asegúrate de definir el archivo con File(...) para multipart/form-data
-    db: Session = Depends(get_db)
-):
-    # Procesa el archivo subido
-    if file.content_type not in ["image/jpeg", "image/png"]:
-        raise HTTPException(status_code=400, detail="Formato de archivo no soportado")
+async def registrar_cliente(producto: pro, db: Session = Depends(get_db)):
+
+    # Verificar si el producto ya existe
+    sql = text("SELECT * FROM producto WHERE nombre = :nombre AND id_sucursal = :id_sucursal")
+    id_existente = db.execute(sql, {'nombre': producto.nombre, 'id_sucursal': producto.id_sucursal}).fetchone()
+
+    if id_existente:
+        raise HTTPException(status_code=400, detail="El id de este producto ya existe en esta sucursal")
     
+    # Validar el tipo de archivo
+    #if pro.imagen.content_type not in ["image/jpeg", "image/png"]:
+        #raise HTTPException(status_code=400, detail="Formato de archivo no soportado")
+
     # Ruta de guardado del archivo
-    file_location = f"micarpetaimg/{file.filename}"
+    folder_path = "imagenes"
+    os.makedirs(folder_path, exist_ok=True)
+    
+    # Generar un nombre único para evitar sobrescribir archivos
+    file_location = os.path.join(folder_path, f"{pro.imagen}_{pro.imagen.filename}")
 
     # Guarda el archivo en el servidor
     with open(file_location, "wb") as buffer:
-        buffer.write(await file.read())
-    
-    # Agrega los datos del cliente
-    cliente_data = {
-        "documento": documento,
-        "nombre": nombre,
-        "apellido": apellido,
-        "correo": correo,
-        "celular": celular,
-        "sexo": sexo,
-        "edad": edad,
-        "imagen": file_location  # Ruta del archivo guardado
+        buffer.write(await pro.imagen.read())
+
+    # Inserta el producto en la base de datos
+    sql1 = text("""
+    INSERT INTO producto (id, nombre, precio, id_categoria, id_sucursal, imagen) 
+    VALUES (:id, :nombre, :precio, :id_categoria, :id_sucursal, :imagen)
+    """)
+
+    values = {
+        'id': producto.id,
+        'nombre': producto.nombre,
+        'precio': producto.precio,
+        'id_categoria': producto.id_categoria,
+        'id_sucursal': producto.id_sucursal,
+        'imagen': producto.imagen  
     }
 
-    # Resto del código para insertar cliente en la base de datos
-    # ...
+    db.execute(sql1, values)
+    db.commit()
+
+    return {
+        "id": producto.id,
+        "nombre": producto.nombre,
+        "precio": producto.precio,
+        "id_categoria": producto.id_categoria,
+        "id_sucursal": producto.id_sucursal,
+        "imagen": producto.imagen  
+    }'''
