@@ -1,11 +1,12 @@
 import os
 from fastapi import FastAPI, Depends, HTTPException, Path, UploadFile, File, Form
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import NoResultFound
 from typing import List, Optional
 from conexion import crear, get_db
-from modelo import base, Usuario, RolUsuario, Restaurante, Sucursal
-from schemas import UsuarioSchema, UsuarioCreateSchema, UsuarioLoginSchema, RestauranteCreateSchema, RestauranteSchema, RestauranteUpdateSchema, SucursalSchema
+from modelo import DetallePedido, Pedido, Producto, base, Usuario, RolUsuario, Restaurante, Sucursal
+from schemas import DetallePedidoSchema, PedidoSchema, ProductoSchema, UsuarioSchema, UsuarioCreateSchema, UsuarioLoginSchema, RestauranteCreateSchema, RestauranteSchema, RestauranteUpdateSchema, SucursalSchema
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from datetime import date
@@ -301,16 +302,192 @@ async def obtener_sucursales_por_restaurante(id_restaurante: str, db: Session = 
     return sucursales
 
 
+# /////////////////////////////////DETALLE DE PEDIDO ////////////////////////////////////////
+
+@app.post("/detalles-pedido", response_model=DetallePedidoSchema, status_code=201)
+async def crear_detalle_pedido(detalle: DetallePedidoSchema, db: Session = Depends(get_db)):
+    nuevo_detalle = DetallePedido(**detalle.dict())
+    db.add(nuevo_detalle)
+    db.commit()
+    db.refresh(nuevo_detalle)
+    return nuevo_detalle
+
+@app.put("/detalles-pedido/{id}", response_model=DetallePedidoSchema)
+async def actualizar_detalle_pedido(id: int, detalle: DetallePedidoSchema, db: Session = Depends(get_db)):
+    db_detalle = db.query(DetallePedido).filter(DetallePedido.id_detalle_pedido == id).first()
+    if not db_detalle:
+        raise HTTPException(status_code=404, detail="Detalle de pedido no encontrado")
+
+    for key, value in detalle.dict(exclude_unset=True).items():
+        setattr(db_detalle, key, value)
+
+    db.commit()
+    db.refresh(db_detalle)
+    return db_detalle
+
+@app.get("/detalles-pedido/{id}", response_model=DetallePedidoSchema)
+async def obtener_detalle_por_id(id: int, db: Session = Depends(get_db)):
+    detalle = db.query(DetallePedido).filter(DetallePedido.id_detalle_pedido == id).first()
+    if not detalle:
+        raise HTTPException(status_code=404, detail="Detalle de pedido no encontrado")
+    return detalle
+
+@app.get("/detalles-pedido/pedidos/{id_pedido}", response_model=List[DetallePedidoSchema])
+async def obtener_detalle_por_id_pedido(id_pedido: int, db: Session = Depends(get_db)):
+    detalles = db.query(DetallePedido).filter(DetallePedido.id_pedido == id_pedido).all()
+    return detalles
+
+@app.get("/detalles-pedido", response_model=List[DetallePedidoSchema])
+async def obtener_todos_los_detalles(db: Session = Depends(get_db)):
+    detalles = db.query(DetallePedido).all()
+    return detalles
+
+@app.delete("/detalles-pedido/{id}", status_code=204)
+async def eliminar_detalle_pedido(id: int, db: Session = Depends(get_db)):
+    db_detalle = db.query(DetallePedido).filter(DetallePedido.id_detalle_pedido == id).first()
+    if not db_detalle:
+        raise HTTPException(status_code=404, detail="Detalle de pedido no encontrado")
+
+    db.delete(db_detalle)
+    db.commit()
+    return
 
 
 
 
+#  ////////////////////////// Pedido ////////////////////
+
+@app.post("/pedidos", response_model=PedidoSchema, status_code=201)
+async def crear_pedido(pedido: PedidoSchema, db: Session = Depends(get_db)):
+    nuevo_pedido = Pedido(**pedido.dict())
+    db.add(nuevo_pedido)
+    db.commit()
+    db.refresh(nuevo_pedido)
+    return nuevo_pedido
+
+@app.put("/pedidos/{id}", response_model=PedidoSchema)
+async def actualizar_pedido(id: int, pedido_datos: PedidoSchema, db: Session = Depends(get_db)):
+    db_pedido = db.query(Pedido).filter(Pedido.id_pedido == id).first()
+    if not db_pedido:
+        raise HTTPException(status_code=404, detail="Pedido no encontrado")
+
+    for key, value in pedido_datos.dict(exclude_unset=True).items():
+        setattr(db_pedido, key, value)
+
+    db.commit()
+    db.refresh(db_pedido)
+    return db_pedido
+
+@app.get("/pedidos/{id}", response_model=PedidoSchema)
+async def obtener_pedido(id: int, db: Session = Depends(get_db)):
+    db_pedido = db.query(Pedido).filter(Pedido.id_pedido == id).first()
+    if not db_pedido:
+        raise HTTPException(status_code=404, detail="Pedido no encontrado")
+    return db_pedido
+
+@app.get("/pedidos", response_model=List[PedidoSchema])
+async def obtener_todos_los_pedidos(db: Session = Depends(get_db)):
+    pedidos = db.query(Pedido).all()
+    return pedidos
+
+@app.delete("/pedidos/{id}", status_code=204)
+async def eliminar_pedido(id: int, db: Session = Depends(get_db)):
+    db_pedido = db.query(Pedido).filter(Pedido.id_pedido == id).first()
+    if not db_pedido:
+        raise HTTPException(status_code=404, detail="Pedido no encontrado")
+
+    db.delete(db_pedido)
+    db.commit()
+    return
 
 
 
+# ///////////////////////////////// PRODUCTO/////////////////////
+IMAGES_DIRECTORY = "imagenes"
+app.mount(f"/{IMAGES_DIRECTORY}", StaticFiles(directory=IMAGES_DIRECTORY), name="imagenes")
+
+@app.post("/producto/registrar_producto", response_model=ProductoSchema, status_code=201)
+async def crear_producto(
+    nombre: str,
+    precio: float,
+    disponibilidad: bool,
+    id_categoria: int,
+    id_sucursal: int,
+    imagen: UploadFile = File(...)
+):
+    # Verificar si el producto ya existe
+    db = get_db()
+    sql = text("SELECT * FROM producto WHERE nombre = :nombre AND id_sucursal = :id_sucursal")
+    id_existente = db.execute(sql, {'nombre': nombre, 'id_sucursal': id_sucursal}).fetchone()
+
+    if id_existente:
+        raise HTTPException(status_code=400, detail="El producto ya existe en esta sucursal.")
+
+    # Guardar el producto en la base de datos sin imagen
+    nuevo_producto = Producto(
+        nombre=nombre,
+        precio=precio,
+        disponibilidad=disponibilidad,
+        id_categoria=id_categoria,
+        id_sucursal=id_sucursal,
+        imagen=""  # Se actualizará más tarde
+    )
+    
+    db.add(nuevo_producto)
+    db.commit()
+    db.refresh(nuevo_producto)
+
+    # Guardar imagen en el directorio
+    nombre_archivo = f"{nuevo_producto.id_producto}-{imagen.filename}"  # Asegúrate de que id_producto esté disponible
+    ruta_imagen = os.path.join(IMAGES_DIRECTORY, "productos", nombre_archivo)
+
+    # Verificar si ya existe un archivo con el mismo nombre
+    if os.path.exists(ruta_imagen):
+        raise HTTPException(status_code=400, detail="El archivo de imagen ya existe.")
+
+    # Crear el directorio para las imágenes de productos si no existe
+    os.makedirs(os.path.dirname(ruta_imagen), exist_ok=True)
+
+    # Guardar la imagen en el servidor
+    with open(ruta_imagen, "wb") as buffer:
+        buffer.write(await imagen.read())
+
+    # Actualizar el producto con la ruta de la imagen
+    nuevo_producto.imagen = f"/{IMAGES_DIRECTORY}/productos/{nombre_archivo}"
+    db.commit()  # Guardar los cambios en la base de datos
+
+    return nuevo_producto
+
+@app.get("/producto", response_model=List[ProductoSchema])
+async def obtener_todos_los_productos(db: Session = Depends(get_db)):
+    productos = db.query(Producto).all()
+    return productos
 
 
+@app.get("/producto/id_sucursal/{id_sucursal}", response_model=List[ProductoSchema])
+async def obtener_productos_por_sucursal(id_sucursal: int, db: Session = Depends(get_db)):
+    productos = db.query(Producto).filter(Producto.id_sucursal == id_sucursal).all()
+    return productos
 
+@app.get("/producto/disponibilidad/{id_sucursal}", response_model=List[ProductoSchema])
+async def obtener_productos_disponibles(id_sucursal: int, db: Session = Depends(get_db)):
+    productos = db.query(Producto).filter(Producto.id_sucursal == id_sucursal, Producto.disponibilidad == True).all()
+    return productos
+
+@app.get("/producto/categoria/{id_sucursal}/{categoria}", response_model=List[ProductoSchema])
+async def obtener_productos_por_categoria(id_sucursal: int, categoria: int, db: Session = Depends(get_db)):
+    productos = db.query(Producto).filter(
+        Producto.id_sucursal == id_sucursal,
+        Producto.disponibilidad == True,
+        Producto.id_categoria == categoria
+    ).all()
+    return productos
+
+@app.get("/producto/{id}", response_model=ProductoSchema)
+async def obtener_producto_por_id(id: int, db: Session = Depends(get_db)):
+    producto = db.query(Producto).filter(Producto.id_producto == id).first()
+    if not producto:
+        raise HTTPException(status_code=404)
 
 
 

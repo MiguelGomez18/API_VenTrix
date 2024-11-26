@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Enum as SQLAlchemyEnum, Date, ForeignKey
+from sqlalchemy import Boolean, Column, Float, Integer, String, Enum as SQLAlchemyEnum, Date, ForeignKey, Time
 from sqlalchemy.orm import relationship
 from datetime import date
 from conexion import base
@@ -76,3 +76,74 @@ class Sucursal(base):
     # Relación con Restaurante
     id_restaurante = Column(String(100), ForeignKey('restaurante.id'), nullable=False)
     restaurante = relationship("Restaurante", back_populates="sucursales")
+    
+class Producto(base):
+    __tablename__ = "producto"
+
+    id_producto = Column(Integer, primary_key=True, autoincrement=True)
+    nombre = Column(String(100), nullable=False)
+    precio = Column(Float, nullable=False)
+    imagen = Column(String(1000), nullable=True)
+    disponibilidad = Column(Boolean, nullable=False)
+
+    # Relación con Detalle_Pedido
+    detalle_pedido = relationship("Detalle_Pedido", back_populates="producto", lazy="select")
+
+    # Relación con Sucursal
+    id_sucursal = Column(Integer, ForeignKey("sucursal.id"), nullable=False)
+    sucursal = relationship("Sucursal", back_populates="productos")
+
+    # Relación con Categoria
+    id_categoria = Column(Integer, ForeignKey("categoria.id"), nullable=False)
+    categoria = relationship("Categoria", back_populates="productos")
+    
+    
+class EstadoPedido(str, Enum):
+    ORDENADO = "ORDENADO"
+    COMANDADO = "COMANDADO"
+    LISTO = "LISTO"
+    PAGADO = "PAGADO"
+    
+    
+class Pedido(base):
+    __tablename__ = "pedido"
+
+    id_pedido = Column(Integer, primary_key=True, autoincrement=True)
+    fecha_pedido = Column(Date, nullable=False)
+    hora_pedido = Column(Time, nullable=False)
+    estado = Column(SQLAlchemyEnum(EstadoPedido), nullable=False, default=EstadoPedido.ORDENADO)
+    total_pedido = Column(Float, nullable=True, default=0.0)
+    nombre = Column(String, nullable=True)
+    sucursal = Column(String, nullable=False)
+
+    # Relación con Mesa
+    id_mesa = Column(Integer, ForeignKey("mesa.id"), nullable=True)
+    mesa = relationship("Mesa", back_populates="pedidos")
+
+    # Relación con TipoPago
+    id_tipo_pago = Column(Integer, ForeignKey("tipo_pago.id"), nullable=True)
+    tipo_pago = relationship("TipoPago", back_populates="pedidos")
+
+    # Relación con Detalle_Pedido
+    detalle_pedido = relationship("DetallePedido", back_populates="pedido", lazy="select")
+    
+
+class DetallePedido(base):
+    __tablename__ = "detalle_pedido"
+
+    # Atributos de la tabla DetallePedido
+    id_detalle_pedido = Column(Integer, primary_key=True, autoincrement=True)
+    cantidad = Column(Integer, nullable=False)
+    hora_detalle = Column(Time, nullable=False)
+    descripcion = Column(String(200), nullable=True)
+    precio_total = Column(Float, nullable=False)
+    sucursal = Column(String, nullable=False)
+
+    # Relación con Producto
+    id_producto = Column(Integer, ForeignKey("producto.id_producto"), nullable=False)
+    producto = relationship("Producto", back_populates="detalle_pedido")
+
+    # Relación con Pedido
+    id_pedido = Column(Integer, ForeignKey("pedido.id_pedido"), nullable=False)
+    pedido = relationship("Pedido", back_populates="detalle_pedido")
+    
