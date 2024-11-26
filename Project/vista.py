@@ -1,4 +1,5 @@
-from fastapi import FastAPI, Depends, HTTPException, Path
+import os
+from fastapi import FastAPI, Depends, HTTPException, Path, UploadFile, File, Form
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import NoResultFound
 from typing import List, Optional
@@ -6,18 +7,33 @@ from conexion import crear, get_db
 from modelo import base, Usuario, RolUsuario, Restaurante, Sucursal
 from schemas import UsuarioSchema, UsuarioCreateSchema, UsuarioLoginSchema, RestauranteCreateSchema, RestauranteSchema, RestauranteUpdateSchema, SucursalSchema
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from datetime import date
 
 app = FastAPI()
+
+IMAGES_DIRECTORY = "imagenes"
+app.mount(f"/{IMAGES_DIRECTORY}", StaticFiles(directory=IMAGES_DIRECTORY), name="imagenes")
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173"], 
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE"],
     allow_headers=["*"],
 )
 
+@app.get("/")
+async def root():
+    return {"message": "Servidor funcionando"}
+
 base.metadata.create_all(bind=crear)
+
+
+
+'''//////////////////////////////////USUARIO///////////////////////////////'''
+
+
 
 @app.post("/usuario", response_model=UsuarioSchema, status_code=201)
 async def crear_usuario(usuario: UsuarioCreateSchema, db: Session = Depends(get_db)):
@@ -64,6 +80,13 @@ async def listar_usuarios(db: Session = Depends(get_db)):
     usuarios = db.query(Usuario).all()
     return usuarios
 
+@app.get("/usuario/sucursales/{sucursal}", response_model=List[UsuarioSchema], status_code=200)
+async def listar_usuarios_por_sucursal(sucursal: str, db: Session = Depends(get_db)):
+    usuarios = db.query(Usuario).filter(Usuario.sucursal == sucursal).all()
+    if not usuarios:
+        raise HTTPException(status_code=404, detail="No se encontraron usuarios para esta sucursal")
+    return usuarios
+
 @app.get("/usuario/{id}", response_model=UsuarioSchema)
 async def obtener_usuario_por_id(id: str, db: Session = Depends(get_db)):
     db_usuario = db.query(Usuario).filter(Usuario.documento == id).first()
@@ -97,10 +120,50 @@ async def eliminar_usuario(id: str, db: Session = Depends(get_db)):
     db.delete(db_usuario)
     db.commit()
 
+
+
+'''//////////////////////////////////RESTAURANTE///////////////////////////////'''
+
+
+
 @app.post("/restaurante", response_model=RestauranteSchema, status_code=201)
-async def crear_restaurante(restaurante: RestauranteCreateSchema, db: Session = Depends(get_db)):
-    nuevo_restaurante = Restaurante(**restaurante.dict())
+async def registrar_restaurante(
+    id: str,
+    nombre: str = Form(...),
+    descripcion: str = Form(...),
+    telefono: str = Form(...),
+    correo: str = Form(...),
+    fecha_creacion: str = Form(...),
+    fecha_finalizacion: str = Form(...),
+    estado: str = Form('ACTIVO'),
+    imagen: UploadFile = File(None),  # Imagen opcional
+    usuario: dict = Form(...),  # Se espera que el usuario venga como un dict
+    db: Session = Depends(get_db),
+):
+    # Guardar el restaurante en la base de datos
+    nuevo_restaurante = Restaurante(
+        id=id,
+        nombre=nombre,
+        descripcion=descripcion,
+        telefono=telefono,
+        correo=correo,
+        fecha_creacion=fecha_creacion,
+        fecha_finalizacion=fecha_finalizacion,
+        estado=estado
+    )
     db.add(nuevo_restaurante)
+    db.commit()
+    db.refresh(nuevo_restaurante)
+
+    # Si se envía una imagen, guardarla en la carpeta de imágenes
+    if imagen:
+        nombre_imagen = f"{nuevo_restaurante.id}_{imagen.filename}"
+        ruta_imagen = os.path.join(IMAGES_DIRECTORY, "restaurantes", nombre_imagen)
+        os.makedirs(os.path.dirname(ruta_imagen), exist_ok=True)  # Crear directorio si no existe
+        with open(ruta_imagen, "wb") as buffer:
+            buffer.write(await imagen.read())
+        nuevo_restaurante.imagen = f"/{IMAGES_DIRECTORY}/restaurantes/{nombre_imagen}"
+
     db.commit()
     db.refresh(nuevo_restaurante)
     return nuevo_restaurante
@@ -110,12 +173,14 @@ async def listar_restaurantes(db: Session = Depends(get_db)):
     restaurantes = db.query(Restaurante).all()
     return restaurantes
 
-@app.get("/restaurante/{id}", response_model=str)
+
+@app.get("/restaurante/{id}", response_model=RestauranteSchema)
 async def obtener_restaurante_por_id(id: str, db: Session = Depends(get_db)):
     restaurante = db.query(Restaurante).filter(Restaurante.id == id).first()
     if not restaurante:
         raise HTTPException(status_code=404, detail="Restaurante no encontrado")
-    return restaurante.nombre
+    return restaurante
+
 
 @app.get("/restaurante/id_usuario/{id_usuario}", response_model=str)
 async def obtener_id_usuario(id_usuario: str, db: Session = Depends(get_db)):
@@ -126,15 +191,40 @@ async def obtener_id_usuario(id_usuario: str, db: Session = Depends(get_db)):
 
 @app.put("/restaurante/{id}", response_model=RestauranteSchema)
 async def actualizar_restaurante(
-    id: str, restaurante: RestauranteUpdateSchema, db: Session = Depends(get_db)
+    id: str,
+    nombre: str = Form(...),
+    descripcion: str = Form(...),
+    telefono: str = Form(...),
+    direccion: str = Form(...),
+    correo: str = Form(...),
+    imagen: UploadFile = File(None),  # Imagen opcional
+    db: Session = Depends(get_db),
 ):
     db_restaurante = db.query(Restaurante).filter(Restaurante.id == id).first()
     if not db_restaurante:
         raise HTTPException(status_code=404, detail="Restaurante no encontrado")
-    
-    for key, value in restaurante.dict(exclude_unset=True).items():
-        setattr(db_restaurante, key, value)
-    
+
+    # Actualizamos los datos del restaurante
+    db_restaurante.nombre = nombre
+    db_restaurante.descripcion = descripcion
+    db_restaurante.telefono = telefono
+    db_restaurante.direccion = direccion
+    db_restaurante.correo = correo
+
+    if imagen:
+        # Eliminar la imagen anterior si existe
+        if db_restaurante.imagen:
+            ruta_actual = db_restaurante.imagen.lstrip("/")
+            if os.path.exists(ruta_actual):
+                os.remove(ruta_actual)
+
+        nombre_imagen = f"{db_restaurante.id}_{imagen.filename}"
+        ruta_imagen = os.path.join(IMAGES_DIRECTORY, "restaurantes", nombre_imagen)
+        os.makedirs(os.path.dirname(ruta_imagen), exist_ok=True)  # Crear directorio si no existe
+        with open(ruta_imagen, "wb") as buffer:
+            buffer.write(await imagen.read())
+        db_restaurante.imagen = f"/{IMAGES_DIRECTORY}/restaurantes/{nombre_imagen}"
+
     db.commit()
     db.refresh(db_restaurante)
     return db_restaurante
@@ -144,8 +234,20 @@ async def eliminar_restaurante(id: str, db: Session = Depends(get_db)):
     db_restaurante = db.query(Restaurante).filter(Restaurante.id == id).first()
     if not db_restaurante:
         raise HTTPException(status_code=404, detail="Restaurante no encontrado")
+
+    if db_restaurante.imagen and os.path.exists(db_restaurante.imagen):
+        os.remove(db_restaurante.imagen)
+
     db.delete(db_restaurante)
     db.commit()
+
+
+
+
+'''//////////////////////////////////SUCURSAL///////////////////////////////'''
+
+
+
 
 @app.post("/sucursal", response_model=SucursalSchema, status_code=201)
 async def crear_sucursal(sucursal: SucursalSchema, db: Session = Depends(get_db)):
@@ -155,26 +257,23 @@ async def crear_sucursal(sucursal: SucursalSchema, db: Session = Depends(get_db)
     db.refresh(nueva_sucursal)
     return nueva_sucursal
 
+@app.get("/sucursal/id_usuario/{administrador}", response_model=str)
+async def obtener_sucursal_por_administrador(administrador: str, db: Session = Depends(get_db)):
+    sucursal = db.query(Sucursal).filter(Sucursal.administrador == administrador).first()
+    if not sucursal:
+        raise HTTPException(status_code=404, detail="No se encontró una sucursal para este administrador")
+    return sucursal.id
 
-@app.get("/sucursal/{id}", response_model=SucursalSchema)
-async def obtener_sucursal(id: str, db: Session = Depends(get_db)):
-    sucursal = db.query(Sucursal).filter(Sucursal.id == id).first()
+@app.get("/sucursal/{id_sucursal}", response_model=SucursalSchema)
+async def obtener_sucursal(id_sucursal: str, db: Session = Depends(get_db)):
+    sucursal = db.query(Sucursal).filter(Sucursal.id == id_sucursal).first()
     if not sucursal:
         raise HTTPException(status_code=404, detail="Sucursal no encontrada")
     return sucursal
 
-
-@app.get("/sucursal/restaurante/{id_restaurante}", response_model=List[SucursalSchema])
-async def obtener_sucursales_por_restaurante(id_restaurante: str, db: Session = Depends(get_db)):
-    sucursales = db.query(Sucursal).filter(Sucursal.id_restaurante == id_restaurante).all()
-    if not sucursales:
-        raise HTTPException(status_code=404, detail="No se encontraron sucursales para este restaurante")
-    return sucursales
-
-
-@app.put("/sucursal/{id}", response_model=SucursalSchema)
-async def actualizar_sucursal(id: str, sucursal: SucursalSchema, db: Session = Depends(get_db)):
-    db_sucursal = db.query(Sucursal).filter(Sucursal.id == id).first()
+@app.put("/sucursal/{id_sucursal}", response_model=SucursalSchema)
+async def actualizar_sucursal(id_sucursal: str, sucursal: SucursalSchema, db: Session = Depends(get_db)):
+    db_sucursal = db.query(Sucursal).filter(Sucursal.id == id_sucursal).first()
     if not db_sucursal:
         raise HTTPException(status_code=404, detail="Sucursal no encontrada")
     
@@ -185,23 +284,64 @@ async def actualizar_sucursal(id: str, sucursal: SucursalSchema, db: Session = D
     db.refresh(db_sucursal)
     return db_sucursal
 
-
-@app.delete("/sucursal/{id}", status_code=204)
-async def eliminar_sucursal(id: str, db: Session = Depends(get_db)):
-    db_sucursal = db.query(Sucursal).filter(Sucursal.id == id).first()
+@app.delete("/sucursal/{id_sucursal}", status_code=204)
+async def eliminar_sucursal(id_sucursal: str, db: Session = Depends(get_db)):
+    db_sucursal = db.query(Sucursal).filter(Sucursal.id == id_sucursal).first()
     if not db_sucursal:
         raise HTTPException(status_code=404, detail="Sucursal no encontrada")
     
     db.delete(db_sucursal)
     db.commit()
 
+@app.get("/sucursal/restaurante/{id_restaurante}", response_model=List[SucursalSchema])
+async def obtener_sucursales_por_restaurante(id_restaurante: str, db: Session = Depends(get_db)):
+    sucursales = db.query(Sucursal).filter(Sucursal.id_restaurante == id_restaurante).all()
+    if not sucursales:
+        raise HTTPException(status_code=404, detail="No se encontraron sucursales para este restaurante")
+    return sucursales
 
-@app.get("/sucursal/administrador/{administrador}", response_model=str)
-async def obtener_sucursal_por_administrador(administrador: str, db: Session = Depends(get_db)):
-    sucursal = db.query(Sucursal).filter(Sucursal.administrador == administrador).first()
-    if not sucursal:
-        raise HTTPException(status_code=404, detail="No se encontró una sucursal para este administrador")
-    return sucursal.id
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

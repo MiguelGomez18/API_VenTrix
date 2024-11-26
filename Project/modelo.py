@@ -11,6 +11,10 @@ class RolUsuario(Enum):
     COCINA = "COCINA"
     ADMINISTRADOR_SUCURSAL = "ADMINISTRADOR_SUCURSAL"
 
+class EstadoUsuario(Enum):
+    ACTIVO = "ACTIVO"
+    INACTIVO = "INACTIVO"
+
 class Usuario(base):
     __tablename__ = "usuario"
 
@@ -19,11 +23,13 @@ class Usuario(base):
     correo = Column(String(100), nullable=False)
     password = Column(String(50), nullable=False)
     rol = Column(SQLAlchemyEnum(RolUsuario), nullable=False)
-    fecha_creacion = Column(Date, nullable=False)
+    fecha_creacion = Column(Date, nullable=False, default=date.today)
     sucursal = Column(String(100), nullable=True)
-    
-    # Relación con la tabla Restaurante
-    restaurantes = relationship("Restaurante", back_populates="usuario")
+    estado = Column(SQLAlchemyEnum(EstadoUsuario), nullable=False, default=EstadoUsuario.ACTIVO)
+
+    # Relación uno a uno con Restaurante
+    restaurante = relationship("Restaurante", back_populates="usuario")
+
 
 class EstadoRestaurante(Enum):
     ACTIVO = "ACTIVO"
@@ -39,16 +45,17 @@ class Restaurante(base):
     direccion = Column(String(200), nullable=False)
     correo = Column(String(100), nullable=False)
     imagen = Column(String(200), nullable=False)
-    fecha_creacion = Column(Date, nullable=False)
+    fecha_creacion = Column(Date, nullable=False, default=date.today)
     fecha_finalizacion = Column(Date, nullable=False)
     estado = Column(SQLAlchemyEnum(EstadoRestaurante), nullable=False)
 
-    # Relación con Usuario
+    # Relación con Usuario (uno a uno)
     id_usuario = Column(String(10), ForeignKey('usuario.documento'), nullable=False)
-    usuario = relationship("Usuario", back_populates="restaurantes")
+    usuario = relationship("Usuario", back_populates="restaurante")
 
-    # Relación con Sucursal
-    sucursales = relationship("Sucursal", back_populates="restaurante")
+    # Relación con Sucursal (uno a muchos)
+    sucursales = relationship("Sucursal", back_populates="restaurante", cascade="all, delete-orphan")
+
 
 class EstadoSucursal(Enum):
     ACTIVO = "ACTIVO"
@@ -62,7 +69,7 @@ class Sucursal(base):
     direccion = Column(String(200), nullable=False)
     ciudad = Column(String(100), nullable=False)
     telefono = Column(String(10), nullable=False)
-    fecha_apertura = Column(Date, nullable=False)
+    fecha_apertura = Column(Date, nullable=False, default=date.today)
     estado = Column(SQLAlchemyEnum(EstadoSucursal), nullable=False)
     administrador = Column(String(10), nullable=True)
 
