@@ -157,10 +157,10 @@ class EstadoMesa(Enum):
 class Mesa(base):
     __tablename__ = 'mesas'
 
-    id= Column(int, primary_key=True, index=True)
+    id= Column(Integer, primary_key=True, index=True)
     nombre = Column(String(100), nullable=False)
-    estado = Column(Enum(EstadoMesa), nullable=False)
-    id_sucursal = Column(Integer, ForeignKey('sucursales.id_sucursal'))
+    estado = Column(SQLAlchemyEnum(EstadoMesa), nullable=False)
+    id_sucursal = Column(String(100), ForeignKey("sucursal.id"), nullable=False)
 
     # Relación con la entidad Sucursal
     sucursal = relationship("Sucursal", back_populates="mesas")
@@ -176,7 +176,7 @@ class Categoria(base):
 
     id = Column(Integer, primary_key=True, index=True)
     nombre = Column(String(100), nullable=False)
-    sucursal = Column(String, nullable=False)
+    sucursal = Column(String(100), nullable=False)
 
     # Relación con la entidad Producto
     productos = relationship("Producto", back_populates="categoria", lazy="select")

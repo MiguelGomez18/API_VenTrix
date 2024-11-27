@@ -90,9 +90,6 @@ class UsuarioLoginSchema(BaseModel):
     correo: str
     password: str
 
-    class Config:
-        orm_mode = True
-
 
 class DetallePedidoSchema(BaseModel):
     id_detalle_pedido: int  # ID del detalle del pedido
