@@ -402,61 +402,63 @@ async def eliminar_pedido(id: int, db: Session = Depends(get_db)):
 
 
 
-# ///////////////////////////////// PRODUCTO/////////////////////
-IMAGES_DIRECTORY = "imagenes"
-app.mount(f"/{IMAGES_DIRECTORY}", StaticFiles(directory=IMAGES_DIRECTORY), name="imagenes")
+# ///////////////////////////////// PRODUCTO////////////////////////////////
 
 @app.post("/producto/registrar_producto", response_model=ProductoSchema, status_code=201)
 async def crear_producto(
-    nombre: str,
-    precio: float,
-    disponibilidad: bool,
-    id_categoria: int,
-    id_sucursal: int,
-    imagen: UploadFile = File(...)
+    nombre: str = Form(...),
+    precio: float = Form(...),
+    disponibilidad: bool = Form(...),
+    id_categoria: int = Form(...),
+    id_sucursal: int = Form(...),
+    imagen: UploadFile = File(...),  # Imagen es obligatoria
+    db: Session = Depends(get_db)
 ):
-    # Verificar si el producto ya existe
-    db = get_db()
-    sql = text("SELECT * FROM producto WHERE nombre = :nombre AND id_sucursal = :id_sucursal")
-    id_existente = db.execute(sql, {'nombre': nombre, 'id_sucursal': id_sucursal}).fetchone()
+    try:
+        # Verificar si el producto ya existe en la sucursal
+        sql = text("SELECT * FROM producto WHERE nombre = :nombre AND id_sucursal = :id_sucursal")
+        producto_existente = db.execute(sql, {'nombre': nombre, 'id_sucursal': id_sucursal}).fetchone()
 
-    if id_existente:
-        raise HTTPException(status_code=400, detail="El producto ya existe en esta sucursal.")
+        if producto_existente:
+            raise HTTPException(status_code=400, detail="El producto ya existe en esta sucursal.")
 
-    # Guardar el producto en la base de datos sin imagen
-    nuevo_producto = Producto(
-        nombre=nombre,
-        precio=precio,
-        disponibilidad=disponibilidad,
-        id_categoria=id_categoria,
-        id_sucursal=id_sucursal,
-        imagen=""  # Se actualizará más tarde
-    )
-    
-    db.add(nuevo_producto)
-    db.commit()
-    db.refresh(nuevo_producto)
+        # Crear el objeto Producto sin la imagen por ahora
+        nuevo_producto = Producto(
+            nombre=nombre,
+            precio=precio,
+            disponibilidad=disponibilidad,
+            id_categoria=id_categoria,
+            id_sucursal=id_sucursal,
+            imagen=""  # Se actualizará más tarde con la imagen
+        )
 
-    # Guardar imagen en el directorio
-    nombre_archivo = f"{nuevo_producto.id_producto}-{imagen.filename}"  # Asegúrate de que id_producto esté disponible
-    ruta_imagen = os.path.join(IMAGES_DIRECTORY, "productos", nombre_archivo)
+        # Agregar el nuevo producto a la base de datos
+        db.add(nuevo_producto)
+        db.commit()
+        db.refresh(nuevo_producto)
 
-    # Verificar si ya existe un archivo con el mismo nombre
-    if os.path.exists(ruta_imagen):
-        raise HTTPException(status_code=400, detail="El archivo de imagen ya existe.")
+        # Guardar la imagen en el directorio de imágenes
+        nombre_archivo = f"{nuevo_producto.id_producto}-{imagen.filename}"
+        ruta_imagen = os.path.join(IMAGES_DIRECTORY, "productos", nombre_archivo)
+        
+        # Crear directorio si no existe
+        os.makedirs(os.path.dirname(ruta_imagen), exist_ok=True)
+        
+        # Guardar la imagen en el servidor
+        with open(ruta_imagen, "wb") as buffer:
+            buffer.write(await imagen.read())
+        
+        # Actualizar la ruta de la imagen en el producto
+        nuevo_producto.imagen = f"/{IMAGES_DIRECTORY}/productos/{nombre_archivo}"
 
-    # Crear el directorio para las imágenes de productos si no existe
-    os.makedirs(os.path.dirname(ruta_imagen), exist_ok=True)
+        db.commit()  # Confirmar los cambios en la base de datos
+        db.refresh(nuevo_producto)
 
-    # Guardar la imagen en el servidor
-    with open(ruta_imagen, "wb") as buffer:
-        buffer.write(await imagen.read())
+        return nuevo_producto
 
-    # Actualizar el producto con la ruta de la imagen
-    nuevo_producto.imagen = f"/{IMAGES_DIRECTORY}/productos/{nombre_archivo}"
-    db.commit()  # Guardar los cambios en la base de datos
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error al registrar el producto: {str(e)}")
 
-    return nuevo_producto
 
 @app.get("/producto", response_model=List[ProductoSchema])
 async def obtener_todos_los_productos(db: Session = Depends(get_db)):
@@ -489,7 +491,85 @@ async def obtener_producto_por_id(id: int, db: Session = Depends(get_db)):
     if not producto:
         raise HTTPException(status_code=404)
 
+@app.put("/producto/{id}", response_model=ProductoSchema)
+async def actualizar_producto(
+    id: int,
+    nombre: str = Form(...),
+    precio: int = Form(...),
+    id_categoria: int = Form(...),
+    imagen: UploadFile = File(None),  # Imagen es opcional
+    disponibilidad: bool = Form(...),
+    db: Session = Depends(get_db)
+):
+    try:
+        # Obtener el producto existente
+        producto_existente = db.query(Producto).filter(Producto.id_producto == id).first()
+        
+        if not producto_existente:
+            raise HTTPException(status_code=404, detail="Producto no encontrado")
+        
+        # Mantener el nombre de archivo actual si no se sube una nueva imagen
+        nombre_archivo = producto_existente.imagen
+        
+        # Si se sube una nueva imagen, manejar el reemplazo
+        if imagen:
+            if nombre_archivo:
+                # Eliminar la imagen anterior si existe
+                archivo_anterior = os.path.join(IMAGES_DIRECTORY, "productos", nombre_archivo.split('/')[-1])
+                if os.path.exists(archivo_anterior):
+                    os.remove(archivo_anterior)
 
+            # Guardar la nueva imagen
+            nombre_archivo = f"{producto_existente.id_producto}-{imagen.filename}"
+            ruta_imagen = os.path.join(IMAGES_DIRECTORY, "productos", nombre_archivo)
+            os.makedirs(os.path.dirname(ruta_imagen), exist_ok=True)
+            with open(ruta_imagen, "wb") as buffer:
+                buffer.write(await imagen.read())
+
+            producto_existente.imagen = f"/{IMAGES_DIRECTORY}/productos/{nombre_archivo}"
+
+        # Actualizar los campos del producto
+        categoria = db.query(Categoria).filter(Categoria.id_categoria == id_categoria).first()
+        if not categoria:
+            raise HTTPException(status_code=404, detail="Categoría no encontrada")
+
+        producto_existente.nombre = nombre
+        producto_existente.precio = precio
+        producto_existente.id_categoria = id_categoria
+        producto_existente.disponibilidad = disponibilidad
+        
+        # Guardar cambios en la base de datos
+        db.commit()
+        db.refresh(producto_existente)
+
+        return producto_existente
+    
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error al actualizar el producto: {str(e)}")
+
+@app.delete("/producto/{id}", status_code=204)
+async def eliminar_producto(id: int, db: Session = Depends(get_db)):
+    try:
+        # Obtener el producto existente
+        producto = db.query(Producto).filter(Producto.id_producto == id).first()
+        
+        if not producto:
+            raise HTTPException(status_code=404, detail="Producto no encontrado")
+        
+        # Eliminar la imagen si existe
+        if producto.imagen:
+            archivo_imagen = os.path.join(IMAGES_DIRECTORY, "productos", producto.imagen.split('/')[-1])
+            if os.path.exists(archivo_imagen):
+                os.remove(archivo_imagen)
+
+        # Eliminar el producto de la base de datos
+        db.delete(producto)
+        db.commit()
+
+        return {"message": "Producto eliminado exitosamente"}
+    
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error al eliminar el producto: {str(e)}")
 
 
 
