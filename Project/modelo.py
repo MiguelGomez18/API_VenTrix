@@ -146,4 +146,51 @@ class DetallePedido(base):
     # Relación con Pedido
     id_pedido = Column(Integer, ForeignKey("pedido.id_pedido"), nullable=False)
     pedido = relationship("Pedido", back_populates="detalle_pedido")
+
+
+
+#----------------------mesas-----------------
+class EstadoMesa(Enum):
+    FISICA= "FISICA"
+    RAPIDA = "RAPIDA"
+
+class Mesa(base):
+    __tablename__ = 'mesas'
+
+    id= Column(int, primary_key=True, index=True)
+    nombre = Column(String(100), nullable=False)
+    estado = Column(Enum(EstadoMesa), nullable=False)
+    id_sucursal = Column(Integer, ForeignKey('sucursales.id_sucursal'))
+
+    # Relación con la entidad Sucursal
+    sucursal = relationship("Sucursal", back_populates="mesas")
     
+    # Relación con la entidad Pedido
+    pedidos = relationship("Pedido", back_populates="mesa")
+
+
+#----------------------categoria----------------
+
+class Categoria(base):
+    __tablename__ = 'categorias'
+
+    id = Column(Integer, primary_key=True, index=True)
+    nombre = Column(String(100), nullable=False)
+    sucursal = Column(String, nullable=False)
+
+    # Relación con la entidad Producto
+    productos = relationship("Producto", back_populates="categoria", lazy="select")
+
+
+
+#----------------------Tipos de pago----------------
+
+class TipoPago(base):
+    __tablename__ = 'tipo_pago'
+
+    id = Column(Integer, primary_key=True, index=True)
+    descripcion = Column(String, nullable=False)
+    sucursal = Column(String, nullable=False)
+
+    # Relación con la entidad Pedido
+    pedidos = relationship("Pedido", back_populates="tipo_pago", lazy="select")

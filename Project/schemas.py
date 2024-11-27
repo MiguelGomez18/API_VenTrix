@@ -1,7 +1,7 @@
 from pydantic import BaseModel
 from datetime import date, time
 from typing import List, Optional
-from modelo import EstadoPedido, RolUsuario, EstadoRestaurante, EstadoSucursal
+from modelo import EstadoPedido, RolUsuario, EstadoRestaurante, EstadoSucursal,EstadoMesa
 
 class SucursalSchema(BaseModel):
     id: str
@@ -151,6 +151,37 @@ class ProductoSchema(BaseModel):
     disponibilidad: bool
     id_sucursal: int
     id_categoria: int
+
+    class Config:
+        orm_mode = True
+
+
+#----------------------MESAS--------------------------
+
+
+class MesaSchema(BaseModel):
+    nombre: str
+    estado: EstadoMesa
+    id_sucursal: int
+
+    class Config:
+        orm_mode = True
+
+
+#----------------------CATEGORIA---------------------
+class CategoriaSchema(BaseModel):
+    nombre: str
+    sucursal: str
+
+    class Config:
+        orm_mode = True
+
+
+#----------------------Tipos de pago----------------
+
+class TipoPagoSchema(BaseModel):
+    descripcion: str
+    sucursal: str
 
     class Config:
         orm_mode = True

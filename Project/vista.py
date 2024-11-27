@@ -5,8 +5,8 @@ from sqlalchemy.orm import Session
 from sqlalchemy.exc import NoResultFound
 from typing import List, Optional
 from conexion import crear, get_db
-from modelo import DetallePedido, Pedido, Producto, base, Usuario, RolUsuario, Restaurante, Sucursal
-from schemas import DetallePedidoSchema, PedidoSchema, ProductoSchema, UsuarioSchema, UsuarioCreateSchema, UsuarioLoginSchema, RestauranteCreateSchema, RestauranteSchema, RestauranteUpdateSchema, SucursalSchema
+from modelo import DetallePedido, Pedido, Producto, base, Usuario, RolUsuario, Restaurante, Sucursal, Mesa, Categoria, TipoPago
+from schemas import DetallePedidoSchema, PedidoSchema, ProductoSchema, UsuarioSchema, UsuarioCreateSchema, UsuarioLoginSchema, RestauranteCreateSchema, RestauranteSchema, RestauranteUpdateSchema, SucursalSchema,MesaSchema,CategoriaSchema,TipoPagoSchema
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from datetime import date
@@ -572,13 +572,140 @@ async def eliminar_producto(id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail=f"Error al eliminar el producto: {str(e)}")
 
 
+#----------------------MESAS-------------------
+@app.post("/mesas", response_model=MesaSchema, status_code=201)
+async def crear_mesa(mesa: MesaSchema, db: Session = Depends(get_db)):
+    nueva_mesa = Mesa(**mesa.dict())
+    db.add(nueva_mesa)
+    db.commit()
+    db.refresh(nueva_mesa)
+    return nueva_mesa
+
+@app.get("/mesas", response_model=List[MesaSchema])
+async def obtener_mesas(db: Session = Depends(get_db)):
+    mesas = db.query(Mesa).all()
+    return mesas
+
+@app.get("/mesas/{mesa_id}", response_model=MesaSchema)
+async def obtener_mesa(mesa_id: int, db: Session = Depends(get_db)):
+    mesa = db.query(Mesa).filter(Mesa.id == mesa_id).first()
+    if mesa is None:
+        raise HTTPException(status_code=404, detail="Mesa no encontrada")
+    return mesa
+
+@app.put("/mesas/{mesa_id}", response_model=MesaSchema)
+async def actualizar_mesa(mesa_id: int, mesa: MesaSchema, db: Session = Depends(get_db)):
+    mesa_existente = db.query(Mesa).filter(Mesa.id == mesa_id).first()
+    if mesa_existente is None:
+        raise HTTPException(status_code=404, detail="Mesa no encontrada")
+    
+    for key, value in mesa.dict().items():
+        setattr(mesa_existente, key, value)
+
+    db.commit()
+    db.refresh(mesa_existente)
+    return mesa_existente
+
+@app.delete("/mesas/{mesa_id}", status_code=204)
+async def eliminar_mesa(mesa_id: int, db: Session = Depends(get_db)):
+    mesa = db.query(Mesa).filter(Mesa.id == mesa_id).first()
+    if mesa is None:
+        raise HTTPException(status_code=404, detail="Mesa no encontrada")
+    
+    db.delete(mesa)
+    db.commit()
+    return {"message": "Mesa eliminada correctamente"}
 
 
 
+#----------------------CATEGORIA---------------------
 
+@app.post("/categorias", response_model=CategoriaSchema, status_code=201)
+async def crear_categoria(categoria: CategoriaSchema, db: Session = Depends(get_db)):
+    nueva_categoria = Categoria(**categoria.dict())
+    db.add(nueva_categoria)
+    db.commit()
+    db.refresh(nueva_categoria)
+    return nueva_categoria
 
+@app.get("/categorias", response_model=List[CategoriaSchema])
+async def obtener_categorias(db: Session = Depends(get_db)):
+    categorias = db.query(Categoria).all()
+    return categorias
 
+@app.get("/categorias/{categoria_id}", response_model=CategoriaSchema)
+async def obtener_categoria(categoria_id: int, db: Session = Depends(get_db)):
+    categoria = db.query(Categoria).filter(Categoria.id == categoria_id).first()
+    if categoria is None:
+        raise HTTPException(status_code=404, detail="Categoria no encontrada")
+    return categoria
 
+@app.put("/categorias/{categoria_id}", response_model=CategoriaSchema)
+async def actualizar_categoria(categoria_id: int, categoria: CategoriaSchema, db: Session = Depends(get_db)):
+    categoria_existente = db.query(Categoria).filter(Categoria.id == categoria_id).first()
+    if categoria_existente is None:
+        raise HTTPException(status_code=404, detail="Categoria no encontrada")
+    
+    for key, value in categoria.dict().items():
+        setattr(categoria_existente, key, value)
+
+    db.commit()
+    db.refresh(categoria_existente)
+    return categoria_existente
+
+@app.delete("/categorias/{categoria_id}", status_code=204)
+async def eliminar_categoria(categoria_id: int, db: Session = Depends(get_db)):
+    categoria = db.query(Categoria).filter(Categoria.id == categoria_id).first()
+    if categoria is None:
+        raise HTTPException(status_code=404, detail="Categoria no encontrada")
+    
+    db.delete(categoria)
+    db.commit()
+    return {"message": "Categoria eliminada correctamente"}
+
+#------------------------------Tipos de pago---------------------
+@app.post("/tipo_pago", response_model=TipoPagoSchema, status_code=201)
+async def crear_tipo_pago(tipo_pago: TipoPagoSchema, db: Session = Depends(get_db)):
+    nuevo_tipo_pago = TipoPago(**tipo_pago.dict())
+    db.add(nuevo_tipo_pago)
+    db.commit()
+    db.refresh(nuevo_tipo_pago)
+    return nuevo_tipo_pago
+
+@app.get("/tipo_pago", response_model=List[TipoPagoSchema])
+async def obtener_tipo_pago(db: Session = Depends(get_db)):
+    tipo_pagos = db.query(TipoPago).all()
+    return tipo_pagos
+
+@app.get("/tipo_pago/{tipo_pago_id}", response_model=TipoPagoSchema)
+async def obtener_tipo_pago(tipo_pago_id: int, db: Session = Depends(get_db)):
+    tipo_pago = db.query(TipoPago).filter(TipoPago.id == tipo_pago_id).first()
+    if tipo_pago is None:
+        raise HTTPException(status_code=404, detail="Tipo de pago no encontrado")
+    return tipo_pago
+
+@app.put("/tipo_pago/{tipo_pago_id}", response_model=TipoPagoSchema)
+async def actualizar_tipo_pago(tipo_pago_id: int, tipo_pago: TipoPagoSchema, db: Session = Depends(get_db)):
+    tipo_pago_existente = db.query(TipoPago).filter(TipoPago.id == tipo_pago_id).first()
+    if tipo_pago_existente is None:
+        raise HTTPException(status_code=404, detail="Tipo de pago no encontrado")
+    
+    for key, value in tipo_pago.dict().items():
+        setattr(tipo_pago_existente, key, value)
+
+    db.commit()
+    db.refresh(tipo_pago_existente)
+    return tipo_pago_existente
+
+@app.delete("/tipo_pago/{tipo_pago_id}", status_code=204)
+async def eliminar_tipo_pago(tipo_pago_id: int, db: Session = Depends(get_db)):
+    tipo_pago = db.query(TipoPago).filter(TipoPago.id == tipo_pago_id).first()
+    if tipo_pago is None:
+        raise HTTPException(status_code=404, detail="Tipo de pago no encontrado")
+    
+    db.delete(tipo_pago)
+    db.commit()
+    return {"message": "Tipo de pago eliminado correctamente"}
 
 
 
