@@ -1,6 +1,6 @@
 from pydantic import BaseModel
 from datetime import date, time
-from typing import List, Optional
+from typing import List, Optional, Dict
 from modelo import EstadoPedido, RolUsuario, EstadoRestaurante, EstadoSucursal
 
 class SucursalSchema(BaseModel):
@@ -13,8 +13,23 @@ class SucursalSchema(BaseModel):
     estado: EstadoSucursal
     administrador: Optional[str] = None
 
-    class Config:
-        orm_mode = True
+class SucursalCreateSchema(BaseModel):
+    id: str
+    nombre: str
+    direccion: str
+    ciudad: str
+    telefono: str
+    fecha_apertura: date
+    estado: EstadoSucursal
+    administrador: Optional[str] = None
+    restaurante: dict
+
+class SucursalUpdateSchema(BaseModel):
+    nombre: str
+    direccion: str
+    ciudad: str
+    telefono: str
+    administrador: Optional[str] = None
 
 class RestauranteSchema(BaseModel):
     id: str
@@ -27,10 +42,6 @@ class RestauranteSchema(BaseModel):
     fecha_creacion: date
     fecha_finalizacion: date
     estado: EstadoRestaurante
-    sucursales: Optional[List[SucursalSchema]] = None
-
-    class Config:
-        orm_mode = True
 
 class RestauranteCreateSchema(BaseModel):
     nombre: str
@@ -44,9 +55,6 @@ class RestauranteCreateSchema(BaseModel):
     estado: str
     id_usuario: str
 
-    class Config:
-        orm_mode = True
-
 class RestauranteUpdateSchema(BaseModel):
     nombre: Optional[str]
     descripcion: Optional[str]
@@ -59,20 +67,14 @@ class RestauranteUpdateSchema(BaseModel):
     estado: Optional[str]
     id_usuario: Optional[str]
 
-    class Config:
-        orm_mode = True
-
 class UsuarioSchema(BaseModel):
     documento: str
     nombre: str
     correo: str
-    rol: RolUsuario
+    password: str
+    rol: str
     fecha_creacion: date
-    sucursal: str
-    restaurantes: Optional[List[RestauranteSchema]] = None
-
-    class Config:
-        orm_mode = True
+    sucursal: Optional[str] = None
 
 class UsuarioCreateSchema(BaseModel):
     documento: str
@@ -81,18 +83,11 @@ class UsuarioCreateSchema(BaseModel):
     password: str
     rol: RolUsuario
     fecha_creacion: date
-    sucursal: str
-
-    class Config:
-        orm_mode = True
+    sucursal: Optional[str] = None
 
 class UsuarioLoginSchema(BaseModel):
     correo: str
     password: str
-
-    class Config:
-        orm_mode = True
-
 
 class DetallePedidoSchema(BaseModel):
     id_detalle_pedido: int  # ID del detalle del pedido

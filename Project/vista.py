@@ -1,12 +1,12 @@
-import os
+import os, json, ast
 from fastapi import FastAPI, Depends, HTTPException, Path, UploadFile, File, Form
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import NoResultFound
-from typing import List, Optional
+from typing import List, Optional, Dict
 from conexion import crear, get_db
-from modelo import DetallePedido, Pedido, Producto, base, Usuario, RolUsuario, Restaurante, Sucursal
-from schemas import DetallePedidoSchema, PedidoSchema, ProductoSchema, UsuarioSchema, UsuarioCreateSchema, UsuarioLoginSchema, RestauranteCreateSchema, RestauranteSchema, RestauranteUpdateSchema, SucursalSchema
+from modelo import base, Usuario, RolUsuario, Restaurante, Sucursal
+from schemas import UsuarioSchema, UsuarioCreateSchema, UsuarioLoginSchema, RestauranteSchema, SucursalSchema, SucursalCreateSchema, SucursalUpdateSchema
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from datetime import date
@@ -32,11 +32,13 @@ base.metadata.create_all(bind=crear)
 
 
 
-'''//////////////////////////////////USUARIO///////////////////////////////'''
+
+#//////////////////////////////////USUARIO///////////////////////////////
 
 
 
-@app.post("/usuario", response_model=UsuarioSchema, status_code=201)
+
+@app.post("/usuario", response_model=UsuarioCreateSchema, status_code=201)
 async def crear_usuario(usuario: UsuarioCreateSchema, db: Session = Depends(get_db)):
     nuevo_usuario = Usuario(**usuario.dict())
     db.add(nuevo_usuario)
@@ -44,7 +46,7 @@ async def crear_usuario(usuario: UsuarioCreateSchema, db: Session = Depends(get_
     db.refresh(nuevo_usuario)
     return nuevo_usuario
 
-@app.post("/usuario/login", response_model=UsuarioSchema)
+@app.post("/usuario/login", response_model=UsuarioLoginSchema)
 async def login(usuario: UsuarioLoginSchema, db: Session = Depends(get_db)):
     db_usuario = (
         db.query(Usuario)
@@ -123,48 +125,59 @@ async def eliminar_usuario(id: str, db: Session = Depends(get_db)):
 
 
 
-'''//////////////////////////////////RESTAURANTE///////////////////////////////'''
+
+
+#//////////////////////////////////RESTAURANTE///////////////////////////////
+
+
 
 
 
 @app.post("/restaurante", response_model=RestauranteSchema, status_code=201)
 async def registrar_restaurante(
-    id: str,
+    id: str = Form(...),
     nombre: str = Form(...),
     descripcion: str = Form(...),
     telefono: str = Form(...),
+    direccion: str = Form(...),
     correo: str = Form(...),
+    imagen: UploadFile = File(None),  
     fecha_creacion: str = Form(...),
     fecha_finalizacion: str = Form(...),
-    estado: str = Form('ACTIVO'),
-    imagen: UploadFile = File(None),  # Imagen opcional
-    usuario: dict = Form(...),  # Se espera que el usuario venga como un dict
+    estado: str = Form(...),
+    usuario: str = Form(...),  
     db: Session = Depends(get_db),
-):
-    # Guardar el restaurante en la base de datos
+):  
+    
+    try:
+        usuario_data = json.loads(usuario)  
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=400, detail="El campo 'usuario' no tiene un formato JSON válido.")
+
+    documento = usuario_data.get("documento")
+   
     nuevo_restaurante = Restaurante(
         id=id,
         nombre=nombre,
         descripcion=descripcion,
         telefono=telefono,
+        direccion=direccion,
         correo=correo,
         fecha_creacion=fecha_creacion,
         fecha_finalizacion=fecha_finalizacion,
-        estado=estado
+        estado=estado,
+        id_usuario=documento,
     )
-    db.add(nuevo_restaurante)
-    db.commit()
-    db.refresh(nuevo_restaurante)
 
-    # Si se envía una imagen, guardarla en la carpeta de imágenes
     if imagen:
-        nombre_imagen = f"{nuevo_restaurante.id}_{imagen.filename}"
+        nombre_imagen = f"{nuevo_restaurante.id}-{imagen.filename}"
         ruta_imagen = os.path.join(IMAGES_DIRECTORY, "restaurantes", nombre_imagen)
-        os.makedirs(os.path.dirname(ruta_imagen), exist_ok=True)  # Crear directorio si no existe
+        os.makedirs(os.path.dirname(ruta_imagen), exist_ok=True)
         with open(ruta_imagen, "wb") as buffer:
             buffer.write(await imagen.read())
         nuevo_restaurante.imagen = f"/{IMAGES_DIRECTORY}/restaurantes/{nombre_imagen}"
 
+    db.add(nuevo_restaurante)
     db.commit()
     db.refresh(nuevo_restaurante)
     return nuevo_restaurante
@@ -190,6 +203,13 @@ async def obtener_id_usuario(id_usuario: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Restaurante no encontrado para este usuario")
     return restaurante.id
 
+@app.get("/restaurante/nombre/{id_restaurante}", response_model=str)
+async def obtener_nombre_del_restaurante(id_restaurante: str, db: Session = Depends(get_db)):
+    restaurante = db.query(Restaurante).filter(Restaurante.id == id_restaurante).first()
+    if not restaurante:
+        raise HTTPException(status_code=404, detail="No se encontró el nombre del restaurante")
+    return restaurante.nombre
+
 @app.put("/restaurante/{id}", response_model=RestauranteSchema)
 async def actualizar_restaurante(
     id: str,
@@ -198,14 +218,13 @@ async def actualizar_restaurante(
     telefono: str = Form(...),
     direccion: str = Form(...),
     correo: str = Form(...),
-    imagen: UploadFile = File(None),  # Imagen opcional
+    imagen: UploadFile = File(None), 
     db: Session = Depends(get_db),
 ):
     db_restaurante = db.query(Restaurante).filter(Restaurante.id == id).first()
     if not db_restaurante:
         raise HTTPException(status_code=404, detail="Restaurante no encontrado")
 
-    # Actualizamos los datos del restaurante
     db_restaurante.nombre = nombre
     db_restaurante.descripcion = descripcion
     db_restaurante.telefono = telefono
@@ -213,15 +232,14 @@ async def actualizar_restaurante(
     db_restaurante.correo = correo
 
     if imagen:
-        # Eliminar la imagen anterior si existe
         if db_restaurante.imagen:
             ruta_actual = db_restaurante.imagen.lstrip("/")
             if os.path.exists(ruta_actual):
                 os.remove(ruta_actual)
 
-        nombre_imagen = f"{db_restaurante.id}_{imagen.filename}"
+        nombre_imagen = f"{db_restaurante.id}-{imagen.filename}"
         ruta_imagen = os.path.join(IMAGES_DIRECTORY, "restaurantes", nombre_imagen)
-        os.makedirs(os.path.dirname(ruta_imagen), exist_ok=True)  # Crear directorio si no existe
+        os.makedirs(os.path.dirname(ruta_imagen), exist_ok=True)  
         with open(ruta_imagen, "wb") as buffer:
             buffer.write(await imagen.read())
         db_restaurante.imagen = f"/{IMAGES_DIRECTORY}/restaurantes/{nombre_imagen}"
@@ -245,14 +263,25 @@ async def eliminar_restaurante(id: str, db: Session = Depends(get_db)):
 
 
 
-'''//////////////////////////////////SUCURSAL///////////////////////////////'''
+#//////////////////////////////////SUCURSAL///////////////////////////////
 
 
 
 
 @app.post("/sucursal", response_model=SucursalSchema, status_code=201)
-async def crear_sucursal(sucursal: SucursalSchema, db: Session = Depends(get_db)):
-    nueva_sucursal = Sucursal(**sucursal.dict())
+async def crear_sucursal(sucursal: SucursalCreateSchema, db: Session = Depends(get_db)):
+   
+    nueva_sucursal = Sucursal(
+        id=sucursal.id,
+        nombre=sucursal.nombre,
+        direccion=sucursal.direccion,
+        ciudad=sucursal.ciudad,
+        telefono=sucursal.telefono,
+        fecha_apertura=sucursal.fecha_apertura,
+        estado=sucursal.estado,
+        administrador=sucursal.administrador,
+        id_restaurante=sucursal.restaurante.get("id")
+    )
     db.add(nueva_sucursal)
     db.commit()
     db.refresh(nueva_sucursal)
@@ -273,7 +302,7 @@ async def obtener_sucursal(id_sucursal: str, db: Session = Depends(get_db)):
     return sucursal
 
 @app.put("/sucursal/{id_sucursal}", response_model=SucursalSchema)
-async def actualizar_sucursal(id_sucursal: str, sucursal: SucursalSchema, db: Session = Depends(get_db)):
+async def actualizar_sucursal(id_sucursal: str, sucursal: SucursalUpdateSchema, db: Session = Depends(get_db)):
     db_sucursal = db.query(Sucursal).filter(Sucursal.id == id_sucursal).first()
     if not db_sucursal:
         raise HTTPException(status_code=404, detail="Sucursal no encontrada")
@@ -302,9 +331,15 @@ async def obtener_sucursales_por_restaurante(id_restaurante: str, db: Session = 
     return sucursales
 
 
+
+
+
 # /////////////////////////////////DETALLE DE PEDIDO ////////////////////////////////////////
 
-@app.post("/detalles-pedido", response_model=DetallePedidoSchema, status_code=201)
+
+
+
+'''@app.post("/detalles-pedido", response_model=DetallePedidoSchema, status_code=201)
 async def crear_detalle_pedido(detalle: DetallePedidoSchema, db: Session = Depends(get_db)):
     nuevo_detalle = DetallePedido(**detalle.dict())
     db.add(nuevo_detalle)
@@ -569,7 +604,7 @@ async def eliminar_producto(id: int, db: Session = Depends(get_db)):
         return {"message": "Producto eliminado exitosamente"}
     
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error al eliminar el producto: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error al eliminar el producto: {str(e)}")'''
 
 
 

@@ -77,7 +77,7 @@ class Sucursal(base):
     id_restaurante = Column(String(100), ForeignKey('restaurante.id'), nullable=False)
     restaurante = relationship("Restaurante", back_populates="sucursales")
     
-class Producto(base):
+'''class Producto(base):
     __tablename__ = "producto"
 
     id_producto = Column(Integer, primary_key=True, autoincrement=True)
@@ -95,7 +95,7 @@ class Producto(base):
 
     # Relación con Categoria
     id_categoria = Column(Integer, ForeignKey("categoria.id"), nullable=False)
-    categoria = relationship("Categoria", back_populates="productos")
+    categoria = relationship("Categoria", back_populates="productos")'''
     
     
 class EstadoPedido(str, Enum):
@@ -105,7 +105,7 @@ class EstadoPedido(str, Enum):
     PAGADO = "PAGADO"
     
     
-class Pedido(base):
+'''class Pedido(base):
     __tablename__ = "pedido"
 
     id_pedido = Column(Integer, primary_key=True, autoincrement=True)
@@ -145,5 +145,5 @@ class DetallePedido(base):
 
     # Relación con Pedido
     id_pedido = Column(Integer, ForeignKey("pedido.id_pedido"), nullable=False)
-    pedido = relationship("Pedido", back_populates="detalle_pedido")
+    pedido = relationship("Pedido", back_populates="detalle_pedido")'''
     
